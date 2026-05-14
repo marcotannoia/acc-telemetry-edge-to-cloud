@@ -1,4 +1,4 @@
-readme_content = """
+
 <div align="center">
   <h1>🏎️ ACC Cloud Telemetry & Analytics</h1>
   <p>
@@ -9,7 +9,6 @@ readme_content = """
     <img src="https://img.shields.io/badge/Python-3.10+-blue.svg" alt="Python Version">
     <img src="https://img.shields.io/badge/Terraform-1.5+-purple.svg" alt="Terraform">
     <img src="https://img.shields.io/badge/Architecture-Serverless-orange.svg" alt="Serverless">
-    <img src="https://img.shields.io/badge/Cost-%3C%2010%E2%82%AC%2Fmonth-brightgreen.svg" alt="Cost Optimized">
     <img src="https://img.shields.io/badge/Security-Encrypted-success.svg" alt="Encrypted">
   </p>
 </div>
@@ -54,3 +53,27 @@ Born as a University Thesis project, this software bridges the gap between Sim R
 - A Cloud Provider Account (AWS or GCP) with CLI configured.
 
 ### 1. Provision the Cloud Infrastructure
+
+```bash
+cd terraform-infrastructure
+terraform init
+terraform plan
+terraform apply -auto-approve
+```
+
+### 2. Install Client Dependencies
+```bash
+pip install -r requirements
+```
+
+### 3. Start Telemetry Streaming 
+Launch ACC, on on track, and run the client: 
+```bash
+python analytics_backend/telemetry_pusher.py
+```
+
+### 🎓 About The Project 
+This repository is part of a University Thesis exploring the intersection of Motorsport Data Analytics, Cloud Computing, and Infrastructure as Code. The goal is to prove that enterprise-grade, secure, and scalable telemetry systems can be built with near-zero operating costs using modern serverless architectures.
+
+### 📄 License
+This project is licensed under the MIT License - see the [MIT License](LICENSE) file for details.
