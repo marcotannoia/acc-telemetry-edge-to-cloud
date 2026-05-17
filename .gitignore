@@ -3,4 +3,4 @@
 *.tfstate
 *.tfstate.backup
 parameters.txt
-test_acc.pyallora 
+test_acc.pyallora terraform/.terraform/

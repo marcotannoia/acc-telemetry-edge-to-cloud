@@ -27,7 +27,7 @@ resource "aws_cognito_user_pool" "analytics_dashboard_users" {
     email_sending_account = "COGNITO_DEFAULT"
   }
 
-  mfa_configuration = "off"
+  mfa_configuration = "OFF"
 }
 
 resource "aws_cognito_user_pool_client" "client" {

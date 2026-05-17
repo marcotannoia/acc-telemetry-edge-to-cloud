@@ -3,7 +3,6 @@ import json
 from datetime import datetime
 from pyaccsharedmemory import accSharedMemory
 import sys
-
 # --- SOGLIA DI SLITTAMENTO ---
 # Modifica questo valore per rendere l'avviso più o meno sensibile
 SLIP_THRESHOLD = 10
@@ -137,7 +136,7 @@ def start_local_test():
             print(f"\r{live_status:<140}", end='', flush=True)
 
             # 9. Trigger Fine Giro
-            if graphics.completed_lap > last_completed_lap and last_completed_lap != -1:
+            if graphics.completed_lap > last_completed_lap and  graphics.completed_lap != -1:
                 print(f"\n\n[!] GIRO {graphics.completed_lap} COMPLETATO! Elaborazione...")
                 
                 tyre_stint_laps += 1 

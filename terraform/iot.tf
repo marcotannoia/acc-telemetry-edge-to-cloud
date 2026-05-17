@@ -1,3 +1,6 @@
+data "aws_caller_identity" "current" {}
+data "aws_region" "current" {}
+
 resource "aws_iot_policy" "iot_device" {
   name = join("-", [var.name, "device-policy"])
 
