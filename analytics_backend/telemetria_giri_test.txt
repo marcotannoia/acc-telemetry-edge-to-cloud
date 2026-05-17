@@ -22,3 +22,119 @@
     }
 }
 ========================================
+{
+    "timestamp": "2026-05-15 12:16:48",
+    "driver": "Louis\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000",
+    "lap_number": 1,
+    "lap_time_ms": 130287,
+    "best_time_ms": 2147483647,
+    "max_speed_kmh": 271.48,
+    "min_speed_kmh": 0.0,
+    "avg_gas_percent": 0.922,
+    "avg_brake_percent": 0.766,
+    "max_rpm": 7346,
+    "fuel_consumed_L": 6.184,
+    "fuel_per_km_L": 6.184,
+    "max_g_force": 5.1,
+    "avg_tyre_core_C": {
+        "fl": 74.64,
+        "fr": 71.77,
+        "rl": 80.12,
+        "rr": 77.58
+    },
+    "avg_brake_temp_C": {
+        "fl": 368.59,
+        "fr": 344.88,
+        "rl": 196.54,
+        "rr": 195.9
+    },
+    "tyre_age_laps": 1
+}
+========================================
+{
+    "timestamp": "2026-05-15 17:41:59",
+    "driver": "Louis\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000",
+    "lap_number": 1,
+    "lap_time_ms": 121632,
+    "best_time_ms": 121632,
+    "max_speed_kmh": 272.4,
+    "min_speed_kmh": 0.0,
+    "avg_gas_percent": 0.905,
+    "avg_brake_percent": 0.786,
+    "max_rpm": 7274,
+    "fuel_consumed_L": 6.221,
+    "fuel_per_km_L": 6.221,
+    "max_g_force": 23.12,
+    "avg_tyre_core_C": {
+        "fl": 73.86,
+        "fr": 72.19,
+        "rl": 80.1,
+        "rr": 78.71
+    },
+    "avg_brake_temp_C": {
+        "fl": 320.84,
+        "fr": 315.72,
+        "rl": 172.29,
+        "rr": 171.93
+    },
+    "tyre_age_laps": 1
+}
+========================================
+{
+    "timestamp": "2026-05-15 17:43:56",
+    "driver": "Louis\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000",
+    "lap_number": 2,
+    "lap_time_ms": 117432,
+    "best_time_ms": 117432,
+    "max_speed_kmh": 272.89,
+    "min_speed_kmh": 54.94,
+    "avg_gas_percent": 0.903,
+    "avg_brake_percent": 0.781,
+    "max_rpm": 7223,
+    "fuel_consumed_L": 2.85,
+    "fuel_per_km_L": 2.85,
+    "max_g_force": 3.1,
+    "avg_tyre_core_C": {
+        "fl": 78.63,
+        "fr": 71.2,
+        "rl": 82.54,
+        "rr": 77.32
+    },
+    "avg_brake_temp_C": {
+        "fl": 409.96,
+        "fr": 415.05,
+        "rl": 229.23,
+        "rr": 229.27
+    },
+    "tyre_age_laps": 2
+}
+========================================
+{
+    "timestamp": "2026-05-16 13:08:25",
+    "driver": "Louis\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000",
+    "lap_number": 1,
+    "lap_time_ms": 146270,
+    "best_time_ms": 2147483647,
+    "max_speed_kmh": 255.61,
+    "min_speed_kmh": 0.0,
+    "avg_gas_percent": 0.911,
+    "avg_brake_percent": 0.698,
+    "max_rpm": 7306,
+    "fuel_consumed_L": 2.795,
+    "fuel_per_km_L": 2.795,
+    "max_g_force": 25.9,
+    "avg_tyre_core_C": {
+        "fl": 79.43,
+        "fr": 73.53,
+        "rl": 86.02,
+        "rr": 81.22
+    },
+    "avg_brake_temp_C": {
+        "fl": 413.1,
+        "fr": 402.6,
+        "rl": 229.86,
+        "rr": 229.29
+    },
+    "tyre_age_laps": 1
+}
+========================================

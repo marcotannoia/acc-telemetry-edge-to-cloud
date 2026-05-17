@@ -1,0 +1,6 @@
+*.tfvars
+.env
+*.tfstate
+*.tfstate.backup
+parameters.txt
+test_acc.pyallora 
