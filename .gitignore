@@ -4,3 +4,14 @@
 *.tfstate.backup
 parameters.txt
 test_acc.pyallora terraform/.terraform/
+# Local .terraform directories
+.terraform/
+**/.terraform/*
+
+# .tfstate files
+*.tfstate
+*.tfstate.*
+
+# .tfvars files (se in futuro li userai per variabili sensibili)
+*.tfvars
+*.tfvars.json
