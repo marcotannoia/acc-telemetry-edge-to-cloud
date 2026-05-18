@@ -3,12 +3,42 @@ import json
 from datetime import datetime
 from pyaccsharedmemory import accSharedMemory
 import sys
+from awsiotsdk import mqtt, io
+from awsiot import mqtt_connection_builder
 # --- SOGLIA DI SLITTAMENTO ---
 # Modifica questo valore per rendere l'avviso più o meno sensibile
 SLIP_THRESHOLD = 10
+
+
+def setup_mqtt_connection():
+    # Inizializza i componenti di rete
+    event_loop_group = io.EventLoopGroup(1)
+    host_resolver = io.DefaultHostResolver(event_loop_group)
+    client_bootstrap = io.ClientBootstrap(event_loop_group, host_resolver)
+
+    # Configurazione connessione mTLS con i certificati
+    mqtt_connection = mqtt_connection_builder.mtls_from_path(
+        endpoint="<INSERIRE_ENDPOINT_IOT_CORE>.iot.eu-south-1.amazonaws.com",
+        cert_filepath="device-certificate.pem.crt",
+        pri_key_filepath="device-private.pem.key",
+        ca_filepath="AmazonRootCA1.pem",
+        client_bootstrap=client_bootstrap,
+        client_id="AccTelemetryEdge",
+        clean_session=False,
+        keep_alive_secs=30
+    )
+    
+    print("Inizializzazione TLS... Connessione ad AWS IoT Core...")
+    connect_future = mqtt_connection.connect()
+    connect_future.result()
+    print("Connesso in sicurezza al Cloud!")
+    
+    return mqtt_connection
  
 def start_local_test():
     asm = accSharedMemory()
+    mqtt_conn = setup_mqtt_connection()
+
     last_completed_lap = -1
     
     # Workaround per calcolare l'età delle gomme
@@ -172,12 +202,17 @@ def start_local_test():
                     "tyre_age_laps": tyre_stint_laps
                 }
 
-                file_path = r"C:\Users\marco\Desktop\Tesi_Telemetry\analytics_backend\telemetria_giri_test.txt"
-                with open(file_path, "a") as f:
-                    json.dump(payload, f, indent=4)
-                    f.write("\n" + "="*40 + "\n") 
-
-                print(f"-> Dati salvati con successo in {file_path}\n")
+                topic = "acc/telemetry/laps"
+                
+                try:
+                    mqtt_conn.publish(
+                        topic=topic,
+                        payload=json.dumps(payload),
+                        qos=mqtt.QoS.AT_LEAST_ONCE
+                    )
+                    print(f"-> Payload del giro {graphics.completed_lap} crittografato e inviato ad AWS!\n")
+                except Exception as e:
+                    print(f"-> Errore critico invio MQTT: {e}\n")
 
                 current_lap_data = {
                     "fuel_start": physics.fuel, "max_g_force": 0, "max_speed": 0, "min_speed": 999,

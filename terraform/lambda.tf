@@ -1,4 +1,4 @@
-# 1. Ruolo IAM per la Lambda (Assume Role)
+# 1. Ruolo IAM per la Lambda
 data "aws_iam_policy_document" "lambda_assume_role" {
   statement {
     effect = "Allow"
@@ -15,7 +15,7 @@ resource "aws_iam_role" "analytics_dashboard_lambda_role" {
   assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
 }
 
-# 2. Policy IAM (Permessi blindati e specifici)
+# 2. Policy IAM (Permessi blindati: via S3, solo Dynamo e Log)
 resource "aws_iam_role_policy" "lambda_execution_policy" {
   name = "lambda_execution_policy"
   role = aws_iam_role.analytics_dashboard_lambda_role.id
@@ -24,15 +24,6 @@ resource "aws_iam_role_policy" "lambda_execution_policy" {
     Version = "2012-10-17"
     Statement = [
       {
-        # Permesso di sola lettura esclusivo per il bucket della telemetria
-        Action = [
-          "s3:GetObject"
-        ]
-        Effect   = "Allow"
-        Resource = "${aws_s3_bucket.analytics_dashboard_s3.arn}/*"
-      },
-      {
-        # Permesso di scrittura esclusivo per la tabella DynamoDB della tesi
         Action = [
           "dynamodb:PutItem",
           "dynamodb:UpdateItem",
@@ -42,7 +33,6 @@ resource "aws_iam_role_policy" "lambda_execution_policy" {
         Resource = aws_dynamodb_table.analytics_dashboard_dynamo.arn
       },
       {
-        # Permessi base per generare log e poter debuggare il codice
         Action = [
           "logs:CreateLogGroup",
           "logs:CreateLogStream",
@@ -71,35 +61,33 @@ resource "aws_lambda_function" "analytics_dashboard_lambda" {
   source_code_hash = data.archive_file.analytics_dashboard_zip.output_base64sha256
 
   runtime = "python3.12"
-  timeout = 30 # Alzato a 30s perché il parsing dei file .ld raw può richiedere qualche secondo
+  timeout = 10 # 10 secondi sono più che sufficienti per scrivere un JSON su Dynamo
 
   environment {
     variables = {
-      ENVIRONMENT  = "production"
       DYNAMO_TABLE = aws_dynamodb_table.analytics_dashboard_dynamo.name
     }
   }
 }
 
-# 5. Permesso fondamentale: autorizza S3 a chiamare questa Lambda
-resource "aws_lambda_permission" "allow_bucket" {
-  statement_id  = "AllowExecutionFromS3Bucket"
+# 5. Permesso per permettere a IoT Core di invocare la Lambda
+resource "aws_lambda_permission" "allow_iot" {
+  statement_id  = "AllowExecutionFromIoTCore"
   action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.analytics_dashboard_lambda.arn
-  principal     = "s3.amazonaws.com"
-  source_arn    = aws_s3_bucket.analytics_dashboard_s3.arn
+  function_name = aws_lambda_function.analytics_dashboard_lambda.function_name
+  principal     = "iot.amazonaws.com"
+  source_arn    = aws_iot_topic_rule.telemetry_rule.arn
 }
 
-# 6. L'Innesco: S3 attiva la Lambda solo quando viene creato un nuovo file
-resource "aws_s3_bucket_notification" "bucket_terraform_notification" {
-  bucket = aws_s3_bucket.analytics_dashboard_s3.id
+# 6. L'Innesco (La Regola IoT): Intercetta MQTT e lancia la Lambda
+resource "aws_iot_topic_rule" "telemetry_rule" {
+  name        = "acc_telemetry_to_lambda"
+  description = "Invia payload MQTT della telemetria a Lambda"
+  enabled     = true
+  sql         = "SELECT * FROM 'acc/telemetry/laps'"
+  sql_version = "2016-03-23"
 
-  lambda_function {
-    lambda_function_arn = aws_lambda_function.analytics_dashboard_lambda.arn
-    events              = ["s3:ObjectCreated:*"]
-    # filter_suffix     = ".ld" # Scommenta questa riga se vuoi che si attivi SOLO con i file .ld di Assetto Corsa
+  lambda {
+    function_arn = aws_lambda_function.analytics_dashboard_lambda.arn
   }
-
-  # Terraform deve prima creare il permesso (blocco 5) e poi la notifica, altrimenti va in crash
-  depends_on = [aws_lambda_permission.allow_bucket] 
 }
