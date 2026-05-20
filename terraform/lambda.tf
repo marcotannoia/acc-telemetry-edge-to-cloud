@@ -82,9 +82,9 @@ resource "aws_lambda_permission" "allow_iot" {
 # 6. L'Innesco (La Regola IoT): Intercetta MQTT e lancia la Lambda
 resource "aws_iot_topic_rule" "telemetry_rule" {
   name        = "acc_telemetry_to_lambda"
-  description = "Invia payload MQTT della telemetria a Lambda"
   enabled     = true
-  sql         = "SELECT * FROM 'acc/telemetry/laps'"
+  # Modifica qui per ascoltare il topic autorizzato dalla policy della Thing
+  sql         = "SELECT * FROM 'AccTelemetryEdge/telemetry/laps'"
   sql_version = "2016-03-23"
 
   lambda {

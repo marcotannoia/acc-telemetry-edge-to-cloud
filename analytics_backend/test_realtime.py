@@ -1,38 +1,39 @@
+import os
 import time
 import json
 from datetime import datetime
-from pyaccsharedmemory import accSharedMemory
 import sys
-from awsiotsdk import mqtt, io
+from pyaccsharedmemory import accSharedMemory  # Mantieni i tuoi import
+from awscrt import io, mqtt
 from awsiot import mqtt_connection_builder
-# --- SOGLIA DI SLITTAMENTO ---
-# Modifica questo valore per rendere l'avviso più o meno sensibile
 SLIP_THRESHOLD = 10
-
-
 def setup_mqtt_connection():
-    # Inizializza i componenti di rete
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    cert_path = os.path.join(script_dir, "device-certificate.pem.crt")
+    key_path = os.path.join(script_dir, "device-private.pem.key")
+    ca_path = os.path.join(script_dir, "AmazonRootCA1.pem")
+    iot_endpoint = "a2r71e9visju80-ats.iot.eu-south-1.amazonaws.com"
     event_loop_group = io.EventLoopGroup(1)
     host_resolver = io.DefaultHostResolver(event_loop_group)
     client_bootstrap = io.ClientBootstrap(event_loop_group, host_resolver)
 
-    # Configurazione connessione mTLS con i certificati
+    print(f"Inizializzazione TLS... Connessione a: {iot_endpoint}")
+
     mqtt_connection = mqtt_connection_builder.mtls_from_path(
-        endpoint="<INSERIRE_ENDPOINT_IOT_CORE>.iot.eu-south-1.amazonaws.com",
-        cert_filepath="device-certificate.pem.crt",
-        pri_key_filepath="device-private.pem.key",
-        ca_filepath="AmazonRootCA1.pem",
+        endpoint=iot_endpoint,
+        cert_filepath=cert_path,
+        pri_key_filepath=key_path,
         client_bootstrap=client_bootstrap,
+        ca_filepath=ca_path,
         client_id="AccTelemetryEdge",
         clean_session=False,
         keep_alive_secs=30
     )
-    
-    print("Inizializzazione TLS... Connessione ad AWS IoT Core...")
+
     connect_future = mqtt_connection.connect()
     connect_future.result()
     print("Connesso in sicurezza al Cloud!")
-    
+
     return mqtt_connection
  
 def start_local_test():
@@ -70,6 +71,8 @@ def start_local_test():
             physics = sm.Physics
             graphics = sm.Graphics
             static = sm.Static
+            #id pilota
+            player_name = static.player_name
 
             # Dati vari
             gear_status = physics.gear
@@ -183,11 +186,13 @@ def start_local_test():
                 avg_brake_pedal = sum(current_lap_data["brake_percent"]) / len(current_lap_data["brake_percent"]) if current_lap_data["brake_percent"] else 0
                 max_rpm = max(current_lap_data["rpm"]) if current_lap_data["rpm"] else 0
 
+
                 payload = {
                     "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "track": static.track,
                     "driver": static.player_name, 
                     "lap_number": graphics.completed_lap,
-                    "lap_time_ms": graphics.last_time,
+                    "lap_time_ms": (graphics.last_time), 
                     "best_time_ms": current_lap_data["best_time"],
                     "max_speed_kmh": round(current_lap_data["max_speed"], 2),
                     "min_speed_kmh": round(current_lap_data["min_speed"], 2),
@@ -200,9 +205,10 @@ def start_local_test():
                     "avg_tyre_core_C": avg_core,
                     "avg_brake_temp_C": avg_brake,
                     "tyre_age_laps": tyre_stint_laps
+                    
                 }
 
-                topic = "acc/telemetry/laps"
+                topic = "AccTelemetryEdge/telemetry/laps"
                 
                 try:
                     mqtt_conn.publish(

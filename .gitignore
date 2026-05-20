@@ -15,3 +15,7 @@ test_acc.pyallora terraform/.terraform/
 # .tfvars files (se in futuro li userai per variabili sensibili)
 *.tfvars
 *.tfvars.json
+
+*.pem*
+*.key*
+

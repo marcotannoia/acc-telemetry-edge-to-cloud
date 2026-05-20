@@ -119,3 +119,20 @@ output "device_private_key" {
   sensitive   = true
   description = "Salva questo output nel file device-private.pem.key"
 }
+
+# 1. Crea l'Oggetto IoT (Thing) con lo stesso nome del client_id usato in Python
+resource "aws_iot_thing" "edge_device" {
+  name = "AccTelemetryEdge"
+}
+
+# 2. Attacca la policy del dispositivo al certificato del tuo PC
+resource "aws_iot_policy_attachment" "edge_device_policy" {
+  policy = aws_iot_policy.iot_device.name
+  target = aws_iot_certificate.edge_device.arn
+}
+
+# 3. Attacca il certificato alla Thing (Soddisfa la condizione IsAttached = true)
+resource "aws_iot_thing_principal_attachment" "edge_device_principal" {
+  principal = aws_iot_certificate.edge_device.arn
+  thing     = aws_iot_thing.edge_device.name
+}
