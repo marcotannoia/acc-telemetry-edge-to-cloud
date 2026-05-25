@@ -3,10 +3,13 @@ import time
 import json
 from datetime import datetime
 import sys
-from pyaccsharedmemory import accSharedMemory  # Mantieni i tuoi import
+from pyaccsharedmemory import accSharedMemory  
 from awscrt import io, mqtt
 from awsiot import mqtt_connection_builder
-SLIP_THRESHOLD = 10
+
+# Soglia abbassata per rilevare i micro-slittamenti su asfalto
+SLIP_THRESHOLD = 4.0 
+
 def setup_mqtt_connection():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     cert_path = os.path.join(script_dir, "device-certificate.pem.crt")
@@ -41,8 +44,6 @@ def start_local_test():
     mqtt_conn = setup_mqtt_connection()
 
     last_completed_lap = -1
-    
-    # Workaround per calcolare l'età delle gomme
     tyre_stint_laps = 0
     was_in_pit = False
     
@@ -56,7 +57,10 @@ def start_local_test():
         "gas_percent": [], 
         "brake_percent": [],
         "rpm": [],
-        "best_time": 0
+        "best_time": 0,
+        "pad_life": {"fl": [], "fr": [], "rl": [], "rr": []},
+        "sector_times": [0, 0, 0], # Novità: Array per i 3 settori
+        "last_sector": 0
     }
 
     print("Sensore Telemetria Avviato. In attesa di ACC...")
@@ -65,26 +69,38 @@ def start_local_test():
         while True:
             sm = asm.read_shared_memory()
             if sm is None:
-                time.sleep(0.1)
+                time.sleep(0.05) # Polling veloce per non perdere cambi settore
                 continue
 
             physics = sm.Physics
             graphics = sm.Graphics
             static = sm.Static
-            #id pilota
-            player_name = static.player_name
+            
+            # --- AGGIORNAMENTO SETTORI IN TEMPO REALE ---
+            current_sector = graphics.current_sector_index
+            if current_sector != current_lap_data["last_sector"]:
+                prev_sector = current_lap_data["last_sector"]
+                if 0 <= prev_sector <= 2:
+                    current_lap_data["sector_times"][prev_sector] = graphics.last_sector_time
+                current_lap_data["last_sector"] = current_sector
 
             # Dati vari
-            gear_status = physics.gear
+            air_temp = physics.air_temp
             gap_ahead = graphics.gap_ahead
             gap_behind = graphics.gap_behind
             brake = physics.brake
-
-            # Bandiere
-            yellow_flag = graphics.global_yellow
+            
+            # Estrazione Enums in formato stringa per JSON
+            session_type = graphics.session_type.name if hasattr(graphics.session_type, 'name') else "UNKNOWN"
+            penalty = graphics.penalty.name if hasattr(graphics.penalty, 'name') else "None"
+            is_valid_lap = graphics.is_valid_lap
+            
+            completed_laps = graphics.completed_lap
+            num_laps = graphics.number_of_laps
+            position = graphics.position
 
             # 1. Gestione Pit Stop (Reset età gomme)
-            in_pit = graphics.isInPit if hasattr(graphics, 'isInPit') else False
+            in_pit = graphics.is_in_pit if hasattr(graphics, 'is_in_pit') else False
             if was_in_pit and not in_pit:
                 tyre_stint_laps = 0
             was_in_pit = in_pit
@@ -100,7 +116,7 @@ def start_local_test():
             if 0 < speed < current_lap_data["min_speed"]: 
                 current_lap_data["min_speed"] = speed
 
-            # 4. Input e Motore (Raccolta per medie)
+            # 4. Input e Motore
             if physics.gas > 0: current_lap_data["gas_percent"].append(physics.gas)
             if physics.brake > 0: current_lap_data["brake_percent"].append(physics.brake)
             current_lap_data["rpm"].append(physics.rpm)
@@ -126,7 +142,40 @@ def start_local_test():
             current_lap_data["temps_brake"]["rl"].append(physics.brake_temp.rear_left)
             current_lap_data["temps_brake"]["rr"].append(physics.brake_temp.rear_right)
 
-            # 8. Feedback Visivo Ottimizzato per il Pilota
+            # Estrazione MFD Tyre Pressures
+            mfd_pressure = {
+                "fl": round(graphics.mfd_tyre_pressure.front_left, 2),
+                "fr": round(graphics.mfd_tyre_pressure.front_right, 2),
+                "rl": round(graphics.mfd_tyre_pressure.rear_left, 2),
+                "rr": round(graphics.mfd_tyre_pressure.rear_right, 2)
+            }
+
+            # Valori Slip
+            slip_fl = physics.wheel_slip.front_left
+            slip_fr = physics.wheel_slip.front_right
+            slip_rl = physics.wheel_slip.rear_left
+            slip_rr = physics.wheel_slip.rear_right
+
+            # Valori Pad Life
+            padlife_fl = physics.pad_life.front_left if hasattr(physics, 'pad_life') else None
+            padlife_fr = physics.pad_life.front_right if hasattr(physics, 'pad_life') else None
+            padlife_rl = physics.pad_life.rear_left if hasattr(physics, 'pad_life') else None
+            padlife_rr = physics.pad_life.rear_right if hasattr(physics, 'pad_life') else None
+
+            # --- CONTROLLO SLITTAMENTO MIGLIORATO ---
+            slip_warnings = []
+            # Ignoriamo i falsi allarmi a bassa velocità (es. bloccati in ghiaia/erba) 
+            # e consideriamo solo quando non stiamo frenando
+            if speed > 30.0 and brake == 0:
+                if slip_fl > SLIP_THRESHOLD: slip_warnings.append(f"Ant-Sx ({slip_fl:.1f})")
+                if slip_fr > SLIP_THRESHOLD: slip_warnings.append(f"Ant-Dx ({slip_fr:.1f})")
+                if slip_rl > SLIP_THRESHOLD: slip_warnings.append(f"Post-Sx ({slip_rl:.1f})")
+                if slip_rr > SLIP_THRESHOLD: slip_warnings.append(f"Post-Dx ({slip_rr:.1f})")
+
+            if slip_warnings:
+                print(f"\n⚠️ SLITTAMENTO RILEVATO: {', '.join(slip_warnings)}")
+
+            # 8. Feedback Visivo Dashboard
             est_lap_ms = graphics.estimated_lap_time
             if 0 < est_lap_ms < 2147483647:
                  minutes = int(est_lap_ms // 60000)
@@ -135,41 +184,18 @@ def start_local_test():
             else:
                 est_lap_str = "N/A"
 
-            # Costruzione stringhe compatte
-            flag_str = "YEL" if yellow_flag else "GRN"
-            gap_str = f"+{gap_ahead:.1f}/-{gap_behind:.1f}"
+            flag_str = "YEL" if graphics.global_yellow else "GRN"
+            valid_str = "VAL" if is_valid_lap else "INV"
             
-            # Estrazione valori Slip
-            slip_fl = physics.wheel_slip.front_left
-            slip_fr = physics.wheel_slip.front_right
-            slip_rl = physics.wheel_slip.rear_left
-            slip_rr = physics.wheel_slip.rear_right
-
-            # --- CONTROLLO SLITTAMENTO ---
-            slip_warnings = []
-            if slip_fl > SLIP_THRESHOLD and brake == 0: slip_warnings.append(f"Ant-Sx ({slip_fl:.2f})")
-            if slip_fr > SLIP_THRESHOLD and brake == 0: slip_warnings.append(f"Ant-Dx ({slip_fr:.2f})")
-            if slip_rl > SLIP_THRESHOLD and brake == 0: slip_warnings.append(f"Post-Sx ({slip_rl:.2f})")
-            if slip_rr > SLIP_THRESHOLD and brake == 0: slip_warnings.append(f"Post-Dx ({slip_rr:.2f})")
-
-            # Se c'è almeno un avviso, lo stampa su una nuova riga lasciando il cruscotto intatto
-            if slip_warnings:
-                print(f"\n⚠️ SLITTAMENTO ECCESSIVO: {', '.join(slip_warnings)}")
-
-            # Dashboard ultra-compatta
             live_status = (
-                f"[{flag_str}] L:{graphics.completed_lap} Est:{est_lap_str} | Gap:{gap_str} | "
+                f"[{flag_str}|{valid_str}] L:{graphics.completed_lap} Est:{est_lap_str} | Sec:{current_sector+1} | "
                 f"V:{speed:.0f} G:{current_lap_data['max_g_force']:.1f} | "
-                f"S:[{slip_fl:.2f} {slip_fr:.2f} {slip_rl:.2f} {slip_rr:.2f}] | "
-                f"Ty:[{physics.tyre_core_temp.front_left:.0f} {physics.tyre_core_temp.front_right:.0f} {physics.tyre_core_temp.rear_left:.0f} {physics.tyre_core_temp.rear_right:.0f}] "
-                f"Br:[{physics.brake_temp.front_left:.0f} {physics.brake_temp.front_right:.0f} {physics.brake_temp.rear_left:.0f} {physics.brake_temp.rear_right:.0f}]"
+                f"Ty:[{physics.tyre_core_temp.front_left:.0f} {physics.tyre_core_temp.front_right:.0f} {physics.tyre_core_temp.rear_left:.0f} {physics.tyre_core_temp.rear_right:.0f}]"
             )
-            
-            # Stampa sulla stessa riga (flush forza l'output immediato, end='' toglie a capo)
-            print(f"\r{live_status:<140}", end='', flush=True)
+            print(f"\r{live_status:<120}", end='', flush=True)
 
             # 9. Trigger Fine Giro
-            if graphics.completed_lap > last_completed_lap and  graphics.completed_lap != -1:
+            if graphics.completed_lap > last_completed_lap and graphics.completed_lap != -1:
                 print(f"\n\n[!] GIRO {graphics.completed_lap} COMPLETATO! Elaborazione...")
                 
                 tyre_stint_laps += 1 
@@ -186,14 +212,18 @@ def start_local_test():
                 avg_brake_pedal = sum(current_lap_data["brake_percent"]) / len(current_lap_data["brake_percent"]) if current_lap_data["brake_percent"] else 0
                 max_rpm = max(current_lap_data["rpm"]) if current_lap_data["rpm"] else 0
 
-
+                # COSTRUZIONE DEL PAYLOAD
                 payload = {
                     "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     "track": static.track,
                     "driver": static.player_name, 
+                    "session_type": session_type, 
                     "lap_number": graphics.completed_lap,
-                    "lap_time_ms": (graphics.last_time), 
+                    "is_valid_lap": is_valid_lap,
+                    "penalty": penalty,
+                    "lap_time_ms": graphics.last_time, 
                     "best_time_ms": current_lap_data["best_time"],
+                    "sector_times_ms": current_lap_data["sector_times"], 
                     "max_speed_kmh": round(current_lap_data["max_speed"], 2),
                     "min_speed_kmh": round(current_lap_data["min_speed"], 2),
                     "avg_gas_percent": round(avg_gas, 3),
@@ -204,8 +234,18 @@ def start_local_test():
                     "max_g_force": round(current_lap_data["max_g_force"], 2),
                     "avg_tyre_core_C": avg_core,
                     "avg_brake_temp_C": avg_brake,
-                    "tyre_age_laps": tyre_stint_laps
-                    
+                    "tyre_age_laps": tyre_stint_laps,
+                    "mfd_tyre_pressure": mfd_pressure,
+                    "air_temp_C": round(air_temp, 2),
+                    "road_temp_C": round(physics.road_temp, 2) if hasattr(physics, 'road_temp') else None,
+                    "pad_life_mm": {
+                        "fl": round(padlife_fl, 2) if padlife_fl is not None else None,
+                        "fr": round(padlife_fr, 2) if padlife_fr is not None else None,
+                        "rl": round(padlife_rl, 2) if padlife_rl is not None else None,
+                        "rr": round(padlife_rr, 2) if padlife_rr is not None else None
+                    }, 
+                    "number_of_laps": num_laps, 
+                    "position": position
                 }
 
                 topic = "AccTelemetryEdge/telemetry/laps"
@@ -216,16 +256,22 @@ def start_local_test():
                         payload=json.dumps(payload),
                         qos=mqtt.QoS.AT_LEAST_ONCE
                     )
-                    print(f"-> Payload del giro {graphics.completed_lap} crittografato e inviato ad AWS!\n")
+                    print(f"-> Payload del giro {graphics.completed_lap} inviato ad AWS!\n")
+                    print(f"-> Tempi Settori: {current_lap_data['sector_times']}\n")
                 except Exception as e:
                     print(f"-> Errore critico invio MQTT: {e}\n")
 
+                # Reset del dizionario
                 current_lap_data = {
-                    "fuel_start": physics.fuel, "max_g_force": 0, "max_speed": 0, "min_speed": 999,
+                    "fuel_start": physics.fuel, 
+                    "max_g_force": 0, "max_speed": 0, "min_speed": 999,
                     "temps_core": {"fl": [], "fr": [], "rl": [], "rr": []},
                     "temps_brake": {"fl": [], "fr": [], "rl": [], "rr": []},
                     "gas_percent": [], "brake_percent": [], "rpm": [],
-                    "best_time": current_lap_data["best_time"] 
+                    "best_time": current_lap_data["best_time"],
+                    "pad_life": {"fl": [], "fr": [], "rl": [], "rr": []},
+                    "sector_times": [0, 0, 0],
+                    "last_sector": 0
                 }
             
             last_completed_lap = graphics.completed_lap
