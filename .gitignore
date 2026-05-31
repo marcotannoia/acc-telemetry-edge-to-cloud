@@ -19,3 +19,4 @@ test_acc.pyallora terraform/.terraform/
 *.pem*
 *.key*
 
+da vedere/*

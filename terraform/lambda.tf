@@ -27,7 +27,8 @@ resource "aws_iam_role_policy" "lambda_execution_policy" {
         Action = [
           "dynamodb:PutItem",
           "dynamodb:UpdateItem",
-          "dynamodb:GetItem"
+          "dynamodb:GetItem",
+          "dynamodb:Query"
         ]
         Effect   = "Allow"
         Resource = aws_dynamodb_table.analytics_dashboard_dynamo.arn
@@ -48,7 +49,7 @@ resource "aws_iam_role_policy" "lambda_execution_policy" {
 # 3. Zippaggio del codice sorgente Python
 data "archive_file" "analytics_dashboard_zip" {
   type        = "zip"
-  source_file = "${path.module}/analytics_dashboard.py"
+  source_dir  = "${path.module}/lambda_src"
   output_path = "${path.module}/analytics_backend.zip"
 }
 
@@ -57,7 +58,7 @@ resource "aws_lambda_function" "analytics_dashboard_lambda" {
   filename         = data.archive_file.analytics_dashboard_zip.output_path
   function_name    = "analytics_dashboard_lambda"
   role             = aws_iam_role.analytics_dashboard_lambda_role.arn
-  handler          = "analytics_dashboard.handler" 
+  handler          = "analytics_dashboard.handler"
   source_code_hash = data.archive_file.analytics_dashboard_zip.output_base64sha256
 
   runtime = "python3.12"
@@ -81,8 +82,8 @@ resource "aws_lambda_permission" "allow_iot" {
 
 # 6. L'Innesco (La Regola IoT): Intercetta MQTT e lancia la Lambda
 resource "aws_iot_topic_rule" "telemetry_rule" {
-  name        = "acc_telemetry_to_lambda"
-  enabled     = true
+  name    = "acc_telemetry_to_lambda"
+  enabled = true
   # Modifica qui per ascoltare il topic autorizzato dalla policy della Thing
   sql         = "SELECT * FROM 'AccTelemetryEdge/telemetry/laps'"
   sql_version = "2016-03-23"

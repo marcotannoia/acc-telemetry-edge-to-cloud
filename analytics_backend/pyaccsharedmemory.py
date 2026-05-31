@@ -257,6 +257,8 @@ class PhysicsMap:
     wheel_slip: Wheels
     wheel_pressure: Wheels
     wheel_angular_s: Wheels
+    tyre_wear: Wheels
+    tyre_dirty_level: Wheels
     tyre_core_temp: Wheels
 
     suspension_travel: Wheels
@@ -646,6 +648,8 @@ def read_physic_map(physic_map: accSM) -> PhysicsMap:
         Wheels(*temp["wheelSlip"]),
         Wheels(*temp["wheelsPressure"]),
         Wheels(*temp["wheelAngularSpeed"]),
+        Wheels(*temp["tyreWear"]),
+        Wheels(*temp["tyreDirtyLevel"]),
         Wheels(*temp["tyreCoreTemperature"]),
         Wheels(*temp["suspensionTravel"]),
         temp["tc"],
@@ -874,8 +878,7 @@ def read_graphics_map(graphic_map: accSM) -> GraphicsMap:
         gap_ahead=temp["gapAhead"],
         gap_behind=temp["gapBehind"],
     )
-
-
+ 
 def read_static_map(static_map: accSM) -> StaticsMap:
     static_map.seek(0)
 

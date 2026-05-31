@@ -32,7 +32,7 @@ resource "aws_cognito_user_pool" "analytics_dashboard_users" {
 
 resource "aws_cognito_user_pool_client" "client" {
   name            = "analytics_dashboard_cognito_client"
-user_pool_id = aws_cognito_user_pool.analytics_dashboard_users.id
+  user_pool_id    = aws_cognito_user_pool.analytics_dashboard_users.id
   generate_secret = false
 }
 
@@ -49,7 +49,7 @@ variable "google_client_secret" {
 }
 
 resource "aws_cognito_identity_provider" "google_provider" {
-  user_pool_id = aws_cognito_user_pool.analytics_dashboard_users.id
+  user_pool_id  = aws_cognito_user_pool.analytics_dashboard_users.id
   provider_name = "Google"
   provider_type = "Google"
 

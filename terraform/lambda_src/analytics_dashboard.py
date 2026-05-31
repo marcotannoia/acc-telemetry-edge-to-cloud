@@ -3,6 +3,8 @@ import os
 import boto3
 from decimal import Decimal
 from botocore.exceptions import ClientError
+from boto3.dynamodb.conditions import Key
+from strategy import StrategyEvaluator
 
 # Inizializza il client DynamoDB
 dynamodb = boto3.resource('dynamodb')
@@ -19,6 +21,22 @@ def convert_floats_to_decimals(obj):
         return [convert_floats_to_decimals(v) for v in obj]
     return obj
 
+
+def get_recent_laps(driver, limit=4):
+    if not driver:
+        return []
+
+    try:
+        response = table.query(
+            KeyConditionExpression=Key("driver").eq(driver),
+            ScanIndexForward=False,
+            Limit=limit
+        )
+        return list(reversed(response.get("Items", [])))
+    except ClientError as e:
+        print("Storico giri non disponibile:", e.response["Error"]["Message"])
+        return []
+
 def handler(event, context):
     """
     Questa Lambda viene invocata da AWS IoT Core ogni volta che viene pubblicato
@@ -33,8 +51,14 @@ def handler(event, context):
         
     if 'track' in event and isinstance(event['track'], str):
         event['track'] = event['track'].replace('\u0000', '').strip()
+
+    # 2. Calcolo strategia cloud
+    recent_laps = get_recent_laps(event.get("driver"))
+    strategy = StrategyEvaluator()
+    strategy.load_history(recent_laps)
+    event.update(strategy.add_lap(event))
         
-    # 2. FIX TYPE: Converti tutti i float in Decimal
+    # 3. FIX TYPE: Converti tutti i float in Decimal
     event_clean = convert_floats_to_decimals(event)
     
     try:
