@@ -234,7 +234,7 @@ def sector_temperature_advice(lap_history, last_laps=LAST_LAPS_TO_CHECK):
 
 # -- SEZIONE FUSIONE STRATEGIA --
 def hybrid_strategy(lap_payload):
-    stato_gomme, _ = tyre_core_status(lap_payload)
+    stato_gomme, _ = tyre_core_status(lap_payload) # cioe della funziona tyre core status prende solamente il pimo return 
     stato_grip = grip_status(lap_payload)
     stato_fuel, _, _ = fuel_status(lap_payload)
     fuel_plan = fuel_prediction(lap_payload)

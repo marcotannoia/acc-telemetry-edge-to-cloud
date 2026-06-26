@@ -22,7 +22,7 @@ def convert_floats_to_decimals(obj):
     return obj
 
 
-def get_recent_laps(driver, limit=4):
+def get_recent_laps(driver, track=None, limit=4, search_limit=20):
     if not driver:
         return []
 
@@ -30,9 +30,12 @@ def get_recent_laps(driver, limit=4):
         response = table.query(
             KeyConditionExpression=Key("driver").eq(driver),
             ScanIndexForward=False,
-            Limit=limit
+            Limit=search_limit
         )
-        return list(reversed(response.get("Items", [])))
+        laps = response.get("Items", [])
+        if track:
+            laps = [lap for lap in laps if lap.get("track") == track]
+        return list(reversed(laps[:limit]))
     except ClientError as e:
         print("Storico giri non disponibile:", e.response["Error"]["Message"])
         return []
@@ -53,7 +56,7 @@ def handler(event, context):
         event['track'] = event['track'].replace('\u0000', '').strip()
 
     # 2. Calcolo strategia cloud
-    recent_laps = get_recent_laps(event.get("driver"))
+    recent_laps = get_recent_laps(event.get("driver"), event.get("track"))
     strategy = StrategyEvaluator()
     strategy.load_history(recent_laps)
     event.update(strategy.add_lap(event))

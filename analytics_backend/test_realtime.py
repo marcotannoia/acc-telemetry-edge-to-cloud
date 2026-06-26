@@ -6,7 +6,6 @@ import sys
 from pyaccsharedmemory import accSharedMemory  
 from awscrt import io, mqtt
 from awsiot import mqtt_connection_builder
-from terraform.lambda_src.strategy import StrategyEvaluator
 
 # Soglia abbassata per rilevare i micro-slittamenti su asfalto
 SLIP_THRESHOLD = 4.0 
@@ -45,7 +44,6 @@ def setup_mqtt_connection():
 def start_local_test():
     asm = accSharedMemory()
     mqtt_conn = setup_mqtt_connection()
-    strategy = StrategyEvaluator()
 
     last_completed_lap = -1
     tyre_stint_laps = 0
@@ -65,6 +63,9 @@ def start_local_test():
         "rpm": [],
         "best_time": 0,
         "sector_times": [0, 0, 0],
+        "slip_events_by_sector": {"1": 0, "2": 0, "3": 0},
+        "max_slip_by_sector": {"1": 0.0, "2": 0.0, "3": 0.0},
+        "max_slip_by_tyre": {"fl": 0.0, "fr": 0.0, "rl": 0.0, "rr": 0.0},
         "last_sector": 0
     }
 
@@ -177,6 +178,10 @@ def start_local_test():
             slip_fr = physics.wheel_slip.front_right
             slip_rl = physics.wheel_slip.rear_left
             slip_rr = physics.wheel_slip.rear_right
+            current_lap_data["max_slip_by_tyre"]["fl"] = max(current_lap_data["max_slip_by_tyre"]["fl"], slip_fl)
+            current_lap_data["max_slip_by_tyre"]["fr"] = max(current_lap_data["max_slip_by_tyre"]["fr"], slip_fr)
+            current_lap_data["max_slip_by_tyre"]["rl"] = max(current_lap_data["max_slip_by_tyre"]["rl"], slip_rl)
+            current_lap_data["max_slip_by_tyre"]["rr"] = max(current_lap_data["max_slip_by_tyre"]["rr"], slip_rr)
 
    #-------------- CONTROLLO SLITTAMENTO  ---------------------
             slip_warnings = []
@@ -188,6 +193,14 @@ def start_local_test():
                 if slip_rr > SLIP_THRESHOLD: slip_warnings.append(f"Post-Dx ({slip_rr:.1f})")
 
             if slip_warnings:
+                if 0 <= current_sector <= 2:
+                    sector_key = str(current_sector + 1)
+                    max_slip = max(slip_fl, slip_fr, slip_rl, slip_rr)
+                    current_lap_data["slip_events_by_sector"][sector_key] += 1
+                    current_lap_data["max_slip_by_sector"][sector_key] = max(
+                        current_lap_data["max_slip_by_sector"][sector_key],
+                        max_slip
+                    )
                 print(f"\n⚠️ SLITTAMENTO RILEVATO: {', '.join(slip_warnings)}")
 # ------------------------------------------------------------
 
@@ -254,6 +267,13 @@ def start_local_test():
                     "max_g_force": round(current_lap_data["max_g_force"], 2),
                     "avg_tyre_core_C": avg_core,
                     "avg_brake_temp_C": avg_brake,
+                    "slip_events_by_sector": current_lap_data["slip_events_by_sector"],
+                    "max_slip_by_sector": {
+                        k: round(v, 2) for k, v in current_lap_data["max_slip_by_sector"].items()
+                    },
+                    "max_slip_by_tyre": {
+                        k: round(v, 2) for k, v in current_lap_data["max_slip_by_tyre"].items()
+                    },
                     "tyre_age_laps": tyre_stint_laps,
                     "current_tyre_set": current_tyre_set,
                     "strategy_tyre_set": strategy_tyre_set,
@@ -267,14 +287,6 @@ def start_local_test():
                     "position": position,
                     "fuel_left_L": round(physics.fuel, 3)
                 }
-                strategy_advice = strategy.add_lap(payload)
-                payload["strategy_advice"] = strategy_advice
-                strategy_warning = (
-                    "risparmia" in strategy_advice.lower()
-                    or "giro da qualifica" in strategy_advice.lower()
-                    or "raffredda" in strategy_advice.lower()
-                )
-                payload["strategy_warning"] = strategy_warning
 
                 topic = "AccTelemetryEdge/telemetry/laps"
                 
@@ -286,9 +298,7 @@ def start_local_test():
                     )
                     print(f"-> Payload del giro {graphics.completed_lap} inviato ad AWS!\n")
                     print(f"-> Tempi Settori: {current_lap_data['sector_times']}\n")
-                    print(f"-> Strategia: {strategy_advice}\n")
-                    if strategy_warning:
-                        print(f"-> AVVISO STRATEGIA: {strategy_advice}\n")
+                    print("-> Analisi strategica demandata alla Lambda cloud.\n")
                 except Exception as e:
                     print(f"-> Errore critico invio MQTT: {e}\n")
 
@@ -301,6 +311,9 @@ def start_local_test():
                     "gas_percent": [], "brake_percent": [], "rpm": [],
                     "best_time": current_lap_data["best_time"],
                     "sector_times": [0, 0, 0],
+                    "slip_events_by_sector": {"1": 0, "2": 0, "3": 0},
+                    "max_slip_by_sector": {"1": 0.0, "2": 0.0, "3": 0.0},
+                    "max_slip_by_tyre": {"fl": 0.0, "fr": 0.0, "rl": 0.0, "rr": 0.0},
                     "last_sector": 0
                 }
             
