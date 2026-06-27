@@ -9,16 +9,16 @@ from awsiot import mqtt_connection_builder
 
 # Soglia abbassata per rilevare i micro-slittamenti su asfalto
 SLIP_THRESHOLD = 4.0 
-
+# setup della comunicazione mqtt
 def setup_mqtt_connection():
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    cert_path = os.path.join(script_dir, "device-certificate.pem.crt")
-    key_path = os.path.join(script_dir, "device-private.pem.key")
-    ca_path = os.path.join(script_dir, "AmazonRootCA1.pem")
+    cert_path = os.path.join(script_dir, "device-certificate.pem.crt") 
+    key_path = os.path.join(script_dir, "device-private.pem.key") #chiave segreta del certificato
+    ca_path = os.path.join(script_dir, "AmazonRootCA1.pem") #questa serve al client per controllare se il server aws sia vero
     iot_endpoint = "a2r71e9visju80-ats.iot.eu-south-1.amazonaws.com"
-    event_loop_group = io.EventLoopGroup(1)
-    host_resolver = io.DefaultHostResolver(event_loop_group)
-    client_bootstrap = io.ClientBootstrap(event_loop_group, host_resolver)
+    event_loop_group = io.EventLoopGroup(1) #serve per creare cicli di comunicazione, uso un solo thread
+    host_resolver = io.DefaultHostResolver(event_loop_group) # trasforma endpoint in ip reale
+    client_bootstrap = io.ClientBootstrap(event_loop_group, host_resolver) # prende quell ip e quel thread e crea un client 
 
     print(f"Inizializzazione TLS... Connessione a: {iot_endpoint}")
 
@@ -36,9 +36,13 @@ def setup_mqtt_connection():
     connect_future = mqtt_connection.connect()
     connect_future.result()
     print("Connesso in sicurezza al Cloud!")
-
+#certificato = badge da fattorino: “io sono autorizzato come AccTelemetryEdge”
+#chiave privata = prova segreta che quel badge è davvero tuo
+#AWS IoT policy = regole su cosa puoi consegnare e dove
+#topic MQTT = indirizzo/citofono dove lasci la pizza
+#AWS IoT Core = portineria che controlla badge e autorizzazioni
     return mqtt_connection
- # //////////////////////////
+
 
 
 def start_local_test():
@@ -49,8 +53,9 @@ def start_local_test():
     tyre_stint_laps = 0
     was_in_pit = False
     last_tyre_set = None
-    
-    current_lap_data = { # dati di inizio giro
+
+ # -- INIZIALIZZAZIONE DATI GIRO   
+    current_lap_data = { 
         "fuel_start": 0,
         "max_g_force": 0,
         "max_speed": 0,
@@ -68,6 +73,7 @@ def start_local_test():
         "max_slip_by_tyre": {"fl": 0.0, "fr": 0.0, "rl": 0.0, "rr": 0.0},
         "last_sector": 0
     }
+#------------------------------
 
     print("Sensore Telemetria Avviato. In attesa di ACC...")
 
@@ -75,40 +81,35 @@ def start_local_test():
         while True:
             sm = asm.read_shared_memory()
             if sm is None:
-                time.sleep(0.05) # Polling veloce per non perdere cambi settore
+                time.sleep(0.05)  # LETTURA DATI OGNI 50ms
                 continue
-            # -- estrazione dati acc sm
+
+ #         -- ESTRAZIONE DATI SM ---
             physics = sm.Physics
             graphics = sm.Graphics
             static = sm.Static
+#.          ----------------
 
-            
-            # --- AGGIORNAMENTO SETTORI IN TEMPO REALE ---
-            current_sector = graphics.current_sector_index
-            if current_sector != current_lap_data["last_sector"]:
-                prev_sector = current_lap_data["last_sector"]
-                if 0 <= prev_sector <= 2:
-                    current_lap_data["sector_times"][prev_sector] = graphics.last_sector_time
-                current_lap_data["last_sector"] = current_sector
-
+        
+#         -- INIZIALIZZAZIONE SM DATI --
 
             air_temp = physics.air_temp
             gap_ahead = graphics.gap_ahead
             gap_behind = graphics.gap_behind
             brake = physics.brake
-            
-            # Estrazione Enums in formato stringa per JSON
-            session_type = graphics.session_type.name if hasattr(graphics.session_type, 'name') else "UNKNOWN"
-            penalty = graphics.penalty.name if hasattr(graphics.penalty, 'name') else "None"
+            session_type = graphics.session_type.name if hasattr(graphics.session_type, 'name') else "UNKNOWN" #hasattr perche non so in che forma mi comunica il type
+            penalty = graphics.penalty.name if hasattr(graphics.penalty, 'name') else "None"  # idem per la penalita
             is_valid_lap = graphics.is_valid_lap
             completed_laps = graphics.completed_lap
             num_laps = graphics.number_of_laps
             position = graphics.position
-
-
-            current_tyre_set = getattr(graphics, "current_tyre_set", None)
+            current_tyre_set = getattr(graphics, "current_tyre_set", None) #vedo se e un dato disponibile
             strategy_tyre_set = getattr(graphics, "strategy_tyre_set", None)
             mfd_tyre_set = getattr(graphics, "mfd_tyre_set", None)
+            slip_fl = physics.wheel_slip.front_left
+            slip_fr = physics.wheel_slip.front_right
+            slip_rl = physics.wheel_slip.rear_left
+            slip_rr = physics.wheel_slip.rear_right
 
             # -- casistica di pit -> reset eta gomme
             in_pit = graphics.is_in_pit if hasattr(graphics, 'is_in_pit') else False
@@ -117,55 +118,62 @@ def start_local_test():
                 and last_tyre_set is not None
                 and current_tyre_set != last_tyre_set
             )
-            if tyre_set_changed or (was_in_pit and not in_pit):
+            if tyre_set_changed or (was_in_pit and not in_pit): #was_in_pit indica in generale se sono stato ai pit al giro precedente
                 tyre_stint_laps = 0
             if current_tyre_set is not None:
                 last_tyre_set = current_tyre_set
             was_in_pit = in_pit
 
 
+#--- AGGIORNAMENTO SETTORI IN TEMPO REALE ---
+            current_sector = graphics.current_sector_index
+            if current_sector != current_lap_data["last_sector"]: # leggo dati ogni 50ms, cosi vedo se dall'ultima lettura ho avuto un cambio settore 
+                prev_sector = current_lap_data["last_sector"] # salvo quel settore come precedente 
+                if 0 <= prev_sector <= 2:
+                    current_lap_data["sector_times"][prev_sector] = graphics.last_sector_time # salvo il tempo di quel settore 
+                current_lap_data["last_sector"] = current_sector # aggiorno il settore 
+#-------- SEZIONE DI REGISTRAZIONE REAL TIME PARAMETRI ------------------
 
-#             -------- SEZIONE DI REGISTRAZIONE REAL TIME PARAMETRI ------------------
-
-
-            # -- registrazione real time fuel -- 
+#----------- FUEL: OGNI GIRO AGGIORNA IL FUEL START  -- 
             if current_lap_data["fuel_start"] == 0 and physics.fuel > 0:
                 current_lap_data["fuel_start"] = physics.fuel
 
-             # -- registrazione real time speed -- 
+#----------- MAX SPEED: OGNI GIRO AGGIORNA LA MAX SPEED -- 
             speed = physics.speed_kmh
             if speed > current_lap_data["max_speed"]: 
                 current_lap_data["max_speed"] = speed
             if 0 < speed < current_lap_data["min_speed"]: 
                 current_lap_data["min_speed"] = speed
 
-             # -- registrazione real time gas e brake percentage -- 
-            if physics.gas > 0: current_lap_data["gas_percent"].append(physics.gas)
+#------------ GAS, BRAKE %: OGNI 50ms una %-- 
+            if physics.gas > 0: current_lap_data["gas_percent"].append(physics.gas) #append perche nel payload gas_percent e una lista
             if physics.brake > 0: current_lap_data["brake_percent"].append(physics.brake)
             current_lap_data["rpm"].append(physics.rpm)
 
-             # -- registrazione real time g force -- 
-            g_force = (physics.g_force.x**2 + physics.g_force.z**2)**0.5
+#------------ G-FORCE MAX: AGGIORNO AD OGNI GIRO --
+            g_force = (physics.g_force.x**2 + physics.g_force.z**2)**0.5 # calcolo vettore z con pitagora
             if g_force > current_lap_data["max_g_force"]: 
                 current_lap_data["max_g_force"] = g_force
                 
-            # -- registrazione real time fuel -- 
+#------------- SOLO CKECK SULLA VALIDITA DEL BEST TIME-- 
             best_time = graphics.best_time
             if best_time > 0 and (current_lap_data["best_time"] == 0 or best_time < current_lap_data["best_time"]):
                 current_lap_data["best_time"] = best_time
 
-             # -- registrazione real time gomme -- 
-            current_lap_data["temps_core"]["fl"].append(physics.tyre_core_temp.front_left)
+#------------TEMPS CORE: OGNI 50ms -- 
+
+            current_lap_data["temps_core"]["fl"].append(physics.tyre_core_temp.front_left) #temps core sarebbe una litsa
             current_lap_data["temps_core"]["fr"].append(physics.tyre_core_temp.front_right)
             current_lap_data["temps_core"]["rl"].append(physics.tyre_core_temp.rear_left)
             current_lap_data["temps_core"]["rr"].append(physics.tyre_core_temp.rear_right)
+#------------ TEMPS BRAKE: ogni 50ms --
 
             current_lap_data["temps_brake"]["fl"].append(physics.brake_temp.front_left)
             current_lap_data["temps_brake"]["fr"].append(physics.brake_temp.front_right)
             current_lap_data["temps_brake"]["rl"].append(physics.brake_temp.rear_left)
             current_lap_data["temps_brake"]["rr"].append(physics.brake_temp.rear_right)
 
-             # -- registrazione real time WHEEL PRESSURE -- 
+#------------PSI RUOTE                   -- 
             mfd_pressure = {
                 "fl": round(graphics.mfd_tyre_pressure.front_left, 2),
                 "fr": round(graphics.mfd_tyre_pressure.front_right, 2),
@@ -173,11 +181,7 @@ def start_local_test():
                 "rr": round(graphics.mfd_tyre_pressure.rear_right, 2)
             }
 
-             # -- registrazione real time slip -- 
-            slip_fl = physics.wheel_slip.front_left
-            slip_fr = physics.wheel_slip.front_right
-            slip_rl = physics.wheel_slip.rear_left
-            slip_rr = physics.wheel_slip.rear_right
+#-------------MAX SLIP: CHECK SU SLITTAMENTO OGNI 50MS -- 
             current_lap_data["max_slip_by_tyre"]["fl"] = max(current_lap_data["max_slip_by_tyre"]["fl"], slip_fl)
             current_lap_data["max_slip_by_tyre"]["fr"] = max(current_lap_data["max_slip_by_tyre"]["fr"], slip_fr)
             current_lap_data["max_slip_by_tyre"]["rl"] = max(current_lap_data["max_slip_by_tyre"]["rl"], slip_rl)
@@ -186,14 +190,14 @@ def start_local_test():
    #-------------- CONTROLLO SLITTAMENTO  ---------------------
             slip_warnings = []
 
-            if speed > 30.0 and brake == 0:
+            if speed > 30.0 and brake == 0: # cioe se sta a + di 30kmh e non sta frenando 
                 if slip_fl > SLIP_THRESHOLD: slip_warnings.append(f"Ant-Sx ({slip_fl:.1f})")
                 if slip_fr > SLIP_THRESHOLD: slip_warnings.append(f"Ant-Dx ({slip_fr:.1f})")
                 if slip_rl > SLIP_THRESHOLD: slip_warnings.append(f"Post-Sx ({slip_rl:.1f})")
                 if slip_rr > SLIP_THRESHOLD: slip_warnings.append(f"Post-Dx ({slip_rr:.1f})")
 
-            if slip_warnings:
-                if 0 <= current_sector <= 2:
+            if slip_warnings: # se la lista non e vuota 
+                if 0 <= current_sector <= 2: 
                     sector_key = str(current_sector + 1)
                     max_slip = max(slip_fl, slip_fr, slip_rl, slip_rr)
                     current_lap_data["slip_events_by_sector"][sector_key] += 1
@@ -202,9 +206,9 @@ def start_local_test():
                         max_slip
                     )
                 print(f"\n⚠️ SLITTAMENTO RILEVATO: {', '.join(slip_warnings)}")
-# ------------------------------------------------------------
 
-            # -- algoritmo di stima gira --
+#------------STIMA GIRO: dato fornito dalla sm
+
             est_lap_ms = graphics.estimated_lap_time
             if 0 < est_lap_ms < 2147483647:
                  minutes = int(est_lap_ms // 60000)
@@ -213,9 +217,10 @@ def start_local_test():
             else:
                 est_lap_str = "N/A"
 
+#------------- RECAP TERMINALE 
+
             flag_str = "YEL" if graphics.global_yellow else "GRN"
             valid_str = "VAL" if is_valid_lap else "INV"
-            
             live_status = (
                 f"[{flag_str}|{valid_str}] L:{graphics.completed_lap} Est:{est_lap_str} | Sec:{current_sector+1} | "
                 f"V:{speed:.0f} G:{current_lap_data['max_g_force']:.1f} | "
@@ -223,25 +228,24 @@ def start_local_test():
             ) 
             print(f"\r{live_status:<120}", end='', flush=True)
 
-            # 9. Trigger Fine Giro
+#-------------- TRIGGER FINE GIRO 
             if graphics.completed_lap > last_completed_lap and graphics.completed_lap != -1:
                 print(f"\n\n[!] GIRO {graphics.completed_lap} COMPLETATO! Elaborazione...")
                 
                 tyre_stint_laps += 1 
-
                 fuel_consumed = current_lap_data["fuel_start"] - physics.fuel
                 track_length_m = getattr(static, 'track_spline_length', getattr(static, 'trackSPlineLength', 0))
                 track_length_km = track_length_m / 1000.0 if track_length_m > 0 else 1.0
-                fuel_per_km = fuel_consumed / track_length_km if fuel_consumed > 0 else 0
                 remaining_laps = max(num_laps - graphics.completed_lap, 0) if num_laps > 0 else None
                 track_grip_status = getattr(graphics, "track_grip_status", None)
 
+#----------------CALCOLO AVG 
                 avg_core = {k: round(sum(v)/len(v), 2) for k, v in current_lap_data["temps_core"].items() if v}
                 avg_brake = {k: round(sum(v)/len(v), 2) for k, v in current_lap_data["temps_brake"].items() if v}
-                
                 avg_gas = sum(current_lap_data["gas_percent"]) / len(current_lap_data["gas_percent"]) if current_lap_data["gas_percent"] else 0
                 avg_brake_pedal = sum(current_lap_data["brake_percent"]) / len(current_lap_data["brake_percent"]) if current_lap_data["brake_percent"] else 0
                 max_rpm = max(current_lap_data["rpm"]) if current_lap_data["rpm"] else 0
+                fuel_per_km = fuel_consumed / track_length_km if fuel_consumed > 0 else 0
 
                 # COSTRUZIONE DEL PAYLOAD
                 payload = {
@@ -288,7 +292,7 @@ def start_local_test():
                     "fuel_left_L": round(physics.fuel, 3)
                 }
 
-                topic = "AccTelemetryEdge/telemetry/laps"
+                topic = "AccTelemetryEdge/telemetry/laps" 
                 
                 try:
                     mqtt_conn.publish(
@@ -302,7 +306,6 @@ def start_local_test():
                 except Exception as e:
                     print(f"-> Errore critico invio MQTT: {e}\n")
 
-                # Reset del dizionario
                 current_lap_data = {
                     "fuel_start": physics.fuel, 
                     "max_g_force": 0, "max_speed": 0, "min_speed": 999,
