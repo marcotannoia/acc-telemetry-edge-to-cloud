@@ -15,34 +15,46 @@ resource "aws_iam_role" "analytics_dashboard_lambda_role" {
   assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
 }
 
-# 2. Policy IAM (Permessi blindati: via S3, solo Dynamo e Log)
+# 2. Policy IAM: DynamoDB, log e Secret OpenAI opzionale
 resource "aws_iam_role_policy" "lambda_execution_policy" {
   name = "lambda_execution_policy"
   role = aws_iam_role.analytics_dashboard_lambda_role.id
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
-      {
-        Action = [
-          "dynamodb:PutItem",
-          "dynamodb:UpdateItem",
-          "dynamodb:GetItem",
-          "dynamodb:Query"
-        ]
-        Effect   = "Allow"
-        Resource = aws_dynamodb_table.analytics_dashboard_dynamo.arn
-      },
-      {
-        Action = [
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents"
-        ]
-        Effect   = "Allow"
-        Resource = "arn:aws:logs:*:*:*"
-      }
-    ]
+    Statement = concat(
+      [
+        {
+          Action = [
+            "dynamodb:PutItem",
+            "dynamodb:UpdateItem",
+            "dynamodb:GetItem",
+            "dynamodb:Query"
+          ]
+          Effect = "Allow"
+          Resource = [
+            aws_dynamodb_table.analytics_dashboard_dynamo.arn,
+            "${aws_dynamodb_table.analytics_dashboard_dynamo.arn}/index/*"
+          ]
+        },
+        {
+          Action = [
+            "logs:CreateLogGroup",
+            "logs:CreateLogStream",
+            "logs:PutLogEvents"
+          ]
+          Effect   = "Allow"
+          Resource = "arn:aws:logs:*:*:*"
+        }
+      ],
+      var.openai_api_key_secret_arn == "" ? [] : [
+        {
+          Action   = ["secretsmanager:GetSecretValue"]
+          Effect   = "Allow"
+          Resource = var.openai_api_key_secret_arn
+        }
+      ]
+    )
   })
 }
 
@@ -62,11 +74,14 @@ resource "aws_lambda_function" "analytics_dashboard_lambda" {
   source_code_hash = data.archive_file.analytics_dashboard_zip.output_base64sha256
 
   runtime = "python3.12"
-  timeout = 10 # 10 secondi sono più che sufficienti per scrivere un JSON su Dynamo
+  timeout = 30
 
   environment {
     variables = {
-      DYNAMO_TABLE = aws_dynamodb_table.analytics_dashboard_dynamo.name
+      DYNAMO_TABLE              = aws_dynamodb_table.analytics_dashboard_dynamo.name
+      DEFAULT_USER_ID           = var.telemetry_user_id
+      OPENAI_API_KEY_SECRET_ARN = var.openai_api_key_secret_arn
+      OPENAI_MODEL              = var.openai_model
     }
   }
 }

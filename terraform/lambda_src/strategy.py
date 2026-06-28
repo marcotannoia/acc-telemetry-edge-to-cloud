@@ -1,311 +1,285 @@
 from collections import deque
 
 
-# -- SOGLIE STRATEGIA --
 LAST_LAPS_TO_CHECK = 5
-HOT_TEMP_DELTA_C = 2.0
-QUALI_LAP_MARGIN = 1.0
+HOT_TEMP_DELTA_C = 5.0 # soglia per valutare il trend della temperatura gomme
+QUALI_LAP_MARGIN = 1.0 #lo introduco per un margine di sicurezza nel calcolo dei giri xrimanenti
 
 
-def _to_float(value, default=0.0):
+def _to_float(value, default=0.0): #funzione di conversione float per dynamo
     try:
         return float(value)
     except (TypeError, ValueError):
         return default
 
 
-def _media_valori(valori):
-    valori_validi = [_to_float(valore) for valore in valori if valore is not None]
-    if not valori_validi:
-        return 0.0
-    return sum(valori_validi) / len(valori_validi)
+def _average(values): # funzione avg 
+    numbers = [_to_float(value) for value in values if value is not None]
+    return sum(numbers) / len(numbers) if numbers else 0.0
 
 
-def _media_gomme(avg_tyre_core):
+def _average_tyres(avg_tyre_core): #funzione di rappresentazione avg tyre core
     if not isinstance(avg_tyre_core, dict):
         return _to_float(avg_tyre_core)
 
-    return _media_valori([
+    return _average([
         avg_tyre_core.get("fl"),
         avg_tyre_core.get("fr"),
         avg_tyre_core.get("rl"),
         avg_tyre_core.get("rr"),
     ])
 
+#--- STATUS TEMPERATURA INTERNA GOMME --
 
-# -- SEZIONE GESTIONE TYRE CORE --
-def tyre_core_status(lap_payload):
-    temp_media = _media_gomme(lap_payload.get("avg_tyre_core_C", {}))
+def tyre_core_status(lap):  
+    avg_temp = _average_tyres(lap.get("avg_tyre_core_C", {}))
 
-    if temp_media <= 0:
-        return "non_disponibile", temp_media
-    elif temp_media < 70:
-        return "freddo", temp_media
-    elif 70 <= temp_media < 90:
-        return "ottimale", temp_media
-    elif 90 <= temp_media < 100:
-        return "caldo", temp_media
-    else:
-        return "estremamente_caldo", temp_media
+    if avg_temp <= 0:
+        return "non_disponibile", avg_temp
+    if avg_temp < 70:
+        return "freddo", avg_temp
+    if avg_temp < 90:
+        return "ottimale", avg_temp
+    if avg_temp < 100:
+        return "caldo", avg_temp
+    return "estremamente_caldo", avg_temp
 
+#--- CONSIGLI TEMPERATURA INTERNA GOMME -- 
 
-def check_tyre_core(lap_payload):
-    stato_gomme, temp_media = tyre_core_status(lap_payload)
+def tyre_advice(lap):
+    status, avg_temp = tyre_core_status(lap)
 
-    if stato_gomme == "non_disponibile":
-        return "Temperatura gomme non disponibile."
-    elif stato_gomme == "freddo":
-        return f"Gomme fredde ({temp_media:.1f} C): scalda meglio le gomme prima di spingere."
-    elif stato_gomme == "ottimale":
-        return f"Temperatura gomme ottimale ({temp_media:.1f} C)."
-    elif stato_gomme == "caldo":
-        return f"Gomme calde ({temp_media:.1f} C): guida piu' pulita e riduci lo stress in uscita curva."
-    else:
-        return f"Gomme estremamente calde ({temp_media:.1f} C): rallenta e raffredda il ritmo."
+    messages = {
+        "non_disponibile": "Temperatura gomme non disponibile.",
+        "freddo": f"Gomme fredde ({avg_temp:.1f} C): scalda meglio prima di spingere.",
+        "ottimale": f"Temperatura gomme ottimale ({avg_temp:.1f} C).",
+        "caldo": f"Gomme calde ({avg_temp:.1f} C): guida piu' pulita in uscita curva.",
+        "estremamente_caldo": f"Gomme troppo calde ({avg_temp:.1f} C): raffreddare il ritmo.",
+    }
+    return messages[status]
 
-
-# -- SEZIONE GESTIONE GRIP --
-def grip_status(lap_payload):
-    track_grip_status = lap_payload.get("track_grip_status")
-
-    if track_grip_status is None:
+# -- STATUS GRIP -- 
+def grip_status(lap):
+    raw_grip = lap.get("track_grip_status")
+    if raw_grip is None:
         return "non_disponibile"
 
-    grip_text = str(track_grip_status).lower()
-    if "optimum" in grip_text:
+    text = str(raw_grip).lower()
+    if "optimum" in text:
         return "ottimo"
-    elif "fast" in grip_text:
+    if "fast" in text:
         return "buono"
-    elif "green" in grip_text or "greasy" in grip_text:
+    if "green" in text or "greasy" in text:
         return "medio"
-    elif "damp" in grip_text or "wet" in grip_text or "flooded" in grip_text:
+    if "damp" in text or "wet" in text or "flooded" in text:
         return "basso"
 
-    grip_value = _to_float(track_grip_status)
-    if grip_value > 0.8:
+    value = _to_float(raw_grip)
+    if value > 0.8:
         return "ottimo"
-    elif 0.5 < grip_value <= 0.8:
+    if value > 0.5:
         return "buono"
-    elif 0.2 < grip_value <= 0.5:
+    if value > 0.2:
         return "medio"
-    else:
-        return "basso"
+    return "basso"
 
+# -- CONSIGLI GRIP --
+def grip_advice(lap):
+    status = grip_status(lap)
 
-def grip(lap_payload):
-    stato_grip = grip_status(lap_payload)
+    messages = {
+        "non_disponibile": "Grip pista non disponibile.",
+        "ottimo": "Pista in ottime condizioni: il pilota puo' spingere.",
+        "buono": "Pista buona: si puo' spingere con margine.",
+        "medio": "Grip medio: aumentare il margine in frenata.",
+        "basso": "Grip basso: evitare input bruschi e sorpassi rischiosi.",
+    }
+    return messages[status]
 
-    if stato_grip == "non_disponibile":
-        return "Grip pista non disponibile."
-    elif stato_grip == "ottimo":
-        return "Pista in ottime condizioni: puoi spingere."
-    elif stato_grip == "buono":
-        return "Pista in buone condizioni: puoi spingere, ma senza esagerare."
-    elif stato_grip == "medio":
-        return "Pista in condizioni medie: guida con margine."
-    else:
-        return "Pista con poco grip: evita movimenti bruschi."
+# -- STATUS FUEL INIZIALE -- 
 
-
-# -- SEZIONE GESTIONE FUEL --
-def fuel_status(lap_payload):
-    fuel_left = _to_float(lap_payload.get("fuel_left_L"))
-    fuel_start = _to_float(lap_payload.get("fuel_start_L"))
+def fuel_status(lap):
+    fuel_left = _to_float(lap.get("fuel_left_L"))
+    fuel_start = _to_float(lap.get("fuel_start_L"))
 
     if fuel_start <= 0:
         return "non_disponibile", fuel_left, 0.0
 
-    fuel_percent = fuel_left / fuel_start
+    fuel_ratio = fuel_left / fuel_start
+    if fuel_ratio < 0.20:
+        return "critico", fuel_left, fuel_ratio
+    if fuel_ratio < 0.50:
+        return "medio", fuel_left, fuel_ratio
+    return "ok", fuel_left, fuel_ratio
 
-    if fuel_percent < 0.20:
-        return "critico", fuel_left, fuel_percent
-    elif 0.20 <= fuel_percent < 0.50:
-        return "medio", fuel_left, fuel_percent
-    else:
-        return "ok", fuel_left, fuel_percent
+# --  PLANS PER LA STRATEGIA DEL CARBURANTE --
 
-
-def fuel_level(lap_payload):
-    stato_fuel, fuel_left, _ = fuel_status(lap_payload)
-
-    if stato_fuel == "non_disponibile":
-        return "Fuel iniziale non disponibile."
-    elif stato_fuel == "critico":
-        return f"Fuel critico ({fuel_left:.1f} L): valuta il rientro ai box."
-    elif stato_fuel == "medio":
-        return f"Fuel sotto meta' serbatoio ({fuel_left:.1f} L): controlla consumo e strategia."
-    else:
-        return f"Fuel ok ({fuel_left:.1f} L)."
-
-
-def fuel_prediction(lap_payload):
-    fuel_left = _to_float(lap_payload.get("fuel_left_L"))
-    fuel_per_km = _to_float(lap_payload.get("fuel_per_km_L"))
-    track_length_km = _to_float(lap_payload.get("track_length_km"))
-    remaining_laps = _to_float(lap_payload.get("remaining_laps"), None)
+def fuel_plan(lap):
+    fuel_left = _to_float(lap.get("fuel_left_L"))
+    fuel_per_km = _to_float(lap.get("fuel_per_km_L"))
+    track_length_km = _to_float(lap.get("track_length_km"))
+    remaining_laps = _to_float(lap.get("remaining_laps"), None)
 
     if fuel_left <= 0 or fuel_per_km <= 0 or track_length_km <= 0:
         return {
             "status": "non_disponibile",
             "laps_possible": 0.0,
-            "message": "Previsione fuel non disponibile: servono consumo e lunghezza pista."
+            "message": "Previsione fuel non disponibile: mancano consumo o lunghezza pista.",
         }
 
     fuel_per_lap = fuel_per_km * track_length_km
     laps_possible = fuel_left / fuel_per_lap if fuel_per_lap > 0 else 0.0
 
-    if remaining_laps is None:
+    if remaining_laps is None: # se non so quanti giri mancano 
         return {
             "status": "ok",
             "laps_possible": round(laps_possible, 2),
-            "message": f"Con questo consumo puoi fare circa {laps_possible:.1f} giri."
+            "message": f"Con questo consumo puoi fare circa {laps_possible:.1f} giri.",
         }
 
     if laps_possible < remaining_laps:
-        return {
-            "status": "risparmia",
-            "laps_possible": round(laps_possible, 2),
-            "message": (
-                f"Fuel insufficiente: puoi fare {laps_possible:.1f} giri, "
-                f"ma ne restano {remaining_laps:.0f}. Risparmia carburante."
-            )
-        }
-    elif laps_possible <= remaining_laps + QUALI_LAP_MARGIN:
-        return {
-            "status": "giro_qualifica",
-            "laps_possible": round(laps_possible, 2),
-            "message": (
-                f"Fuel al limite: puoi fare {laps_possible:.1f} giri su {remaining_laps:.0f} rimanenti. "
-                "Puoi spingere solo per un giro, poi devi gestire."
-            )
-        }
+        status = "risparmia"
+        message = (
+            f"Fuel insufficiente: puoi fare {laps_possible:.1f} giri, "
+            f"ma ne restano {remaining_laps:.0f}."
+        )
+    elif laps_possible <= remaining_laps + QUALI_LAP_MARGIN: # in realta vale anche per la gara
+        status = "giro_qualifica"
+        message = (
+            f"Fuel al limite: {laps_possible:.1f} giri possibili su "
+            f"{remaining_laps:.0f} rimanenti."
+        )
     else:
-        return {
-            "status": "spingi",
-            "laps_possible": round(laps_possible, 2),
-            "message": (
-                f"Fuel sufficiente: puoi fare {laps_possible:.1f} giri "
-                f"e ne restano {remaining_laps:.0f}. Puoi spingere."
-            )
-        }
+        status = "spingi"
+        message = (
+            f"Fuel sufficiente: {laps_possible:.1f} giri possibili "
+            f"su {remaining_laps:.0f} rimanenti."
+        )
 
-
-def _sector_tyre_temp(lap_payload, sector):
-    avg_tyre_core = lap_payload.get("avg_tyre_core_C", {})
-    if not isinstance(avg_tyre_core, dict):
-        return _to_float(avg_tyre_core)
-
-    tyres_by_sector = {
-        1: ["fl", "fr"],
-        2: ["fr", "rr"],
-        3: ["rl", "rr"],
+    return {
+        "status": status,
+        "laps_possible": round(laps_possible, 2),
+        "message": message,
     }
 
-    return _media_valori(avg_tyre_core.get(tyre) for tyre in tyres_by_sector[sector])
+# -- CONSIGLI SUL FUEL STATUS -- 
 
+def fuel_advice(lap):
+    status, fuel_left, _ = fuel_status(lap)
 
-# -- SEZIONE GESTIONE SETTORI --
-def sector_temperature_advice(lap_history, last_laps=LAST_LAPS_TO_CHECK):
+    if status == "non_disponibile":
+        return "Fuel iniziale non disponibile."
+    if status == "critico":
+        return f"Fuel critico ({fuel_left:.1f} L): valutare rientro o lift and coast."
+    if status == "medio":
+        return f"Fuel sotto meta' serbatoio ({fuel_left:.1f} L): monitorare il consumo."
+    return f"Fuel ok ({fuel_left:.1f} L)."
+
+# -- CONTEGGIO NUMERO DI SLITTAMENTO PER SETTORE 
+
+def slip_advice(lap):
+    events = lap.get("slip_events_by_sector", {})
+    if not isinstance(events, dict) or not events:
+        return "Slip non disponibile."
+
+    sector, count = max(events.items(), key=lambda item: _to_float(item[1]))
+    if _to_float(count) <= 0:
+        return "Nessuno slittamento rilevante nel giro."
+
+    max_by_sector = lap.get("max_slip_by_sector", {})
+    max_slip = _to_float(max_by_sector.get(str(sector)))
+    return (
+        f"Slip concentrato nel settore {sector}: {int(_to_float(count))} eventi, "
+        f"picco {max_slip:.1f}."
+    )
+
+# -- TREND TEMPERATURE ULTIMI 5 GIRI -- 
+
+def tyre_temperature_trend_advice(lap_history, last_laps=LAST_LAPS_TO_CHECK): # questa e la functiom che mi crea la necessita di avere una classes
     valid_laps = [
         lap for lap in lap_history
         if lap.get("is_valid_lap") is True and _to_float(lap.get("lap_time_ms")) > 0
-    ][-last_laps:]
+    ][-last_laps:] # prende solamente gli ultimi 5 giri da lap history
 
     if len(valid_laps) < last_laps:
-        return "Dati settori insufficienti: servono almeno 5 giri validi."
+        return f"Dati temperatura insufficienti: servono almeno {last_laps} giri validi."
 
-    avg_sector_temps = {}
-    for sector in (1, 2, 3):
-        sector_temps = [_sector_tyre_temp(lap, sector) for lap in valid_laps]
-        avg_sector_temps[sector] = _media_valori(sector_temps)
+    lap_temps = [_average_tyres(lap.get("avg_tyre_core_C", {})) for lap in valid_laps]
+    avg_temp = _average(lap_temps)
+    temp_delta = lap_temps[-1] - lap_temps[0] # confronto il primo dei 5 giri con quello attuale
 
-    hottest_sector = max(avg_sector_temps, key=avg_sector_temps.get)
-    coolest_sector_temp = min(avg_sector_temps.values())
-    temp_delta = avg_sector_temps[hottest_sector] - coolest_sector_temp
+    if abs(temp_delta) < HOT_TEMP_DELTA_C:
+        return (
+            f"Temperature gomme stabili negli ultimi {last_laps} giri "
+            f"(media {avg_temp:.1f} C)."
+        )
 
-    if temp_delta < HOT_TEMP_DELTA_C:
-        return "Temperature settori bilanciate negli ultimi 5 giri."
+    if temp_delta > 0:
+        return (
+            f"Temperature gomme in crescita negli ultimi {last_laps} giri "
+            f"(+{temp_delta:.1f} C): gestire sliding e trazione."
+        )
 
     return (
-        f"Settore {hottest_sector} piu' caldo negli ultimi {last_laps} giri "
-        f"({avg_sector_temps[hottest_sector]:.1f} C): rallenta nel settore {hottest_sector}."
+        f"Temperature gomme in calo negli ultimi {last_laps} giri "
+        f"({temp_delta:.1f} C): valutare warm-up o ritmo piu' aggressivo."
     )
 
+# -- STRATEGIA FINALE -- 
 
-# -- SEZIONE FUSIONE STRATEGIA --
-def hybrid_strategy(lap_payload):
-    stato_gomme, _ = tyre_core_status(lap_payload) # cioe della funziona tyre core status prende solamente il pimo return 
-    stato_grip = grip_status(lap_payload)
-    stato_fuel, _, _ = fuel_status(lap_payload)
-    fuel_plan = fuel_prediction(lap_payload)
+def driving_strategy(lap):
+    tyre_status_value, _ = tyre_core_status(lap)
+    track_status = grip_status(lap)
+    tank_status, _, _ = fuel_status(lap)
+    plan = fuel_plan(lap)
 
-    compromessi = []
-    condizioni_pista_ok = stato_grip in ("ottimo", "buono")
-    gomme_veloci = stato_gomme == "ottimale"
-
-    if fuel_plan["status"] == "risparmia":
-        compromessi.append("Lift and coast nelle zone veloci.")
-        compromessi.append("Evita difese aggressive se aumentano il consumo.")
+    if plan["status"] == "risparmia":
         return {
             "push_level": "risparmia",
             "warning": True,
-            "summary": "Non conviene spingere: il fuel previsto non copre i giri rimanenti.",
-            "compromises": compromessi
+            "summary": "Il fuel previsto non copre i giri rimanenti.",
+            "compromises": ["Lift and coast nelle zone veloci.", "Evitare difese aggressive."],
         }
 
-    if gomme_veloci and condizioni_pista_ok and fuel_plan["status"] == "giro_qualifica":
-        compromessi.append("Spingere massimo un giro.")
-        compromessi.append("Dopo il push lap tornare in gestione carburante.")
-        return {
-            "push_level": "qualifica_singola",
-            "warning": True,
-            "summary": "Condizioni ottime, ma fuel al limite: puoi tentare un giro da qualifica.",
-            "compromises": compromessi
-        }
-
-    if gomme_veloci and condizioni_pista_ok and stato_fuel != "critico":
-        if fuel_plan["status"] == "spingi":
-            compromessi.append("Controlla solo il settore piu' caldo negli ultimi giri.")
-            return {
-                "push_level": "spingi",
-                "warning": False,
-                "summary": "Fuel, grip e gomme sono favorevoli: il pilota puo' spingere.",
-                "compromises": compromessi
-            }
-
-        return {
-            "push_level": "gestisci",
-            "warning": False,
-            "summary": "Buone condizioni, ma manca margine fuel chiaro: spingi con attenzione.",
-            "compromises": ["Non prolungare lo stint in modalita' push."]
-        }
-
-    if stato_gomme in ("caldo", "estremamente_caldo"):
-        compromessi.append("Riduci aggressivita' in uscita curva.")
-        compromessi.append("Evita cordoli e sliding nelle curve lunghe.")
+    if tyre_status_value in ("caldo", "estremamente_caldo"):
         return {
             "push_level": "raffredda_gomme",
             "warning": True,
-            "summary": "Il limite principale sono le gomme: meglio raffreddarle prima di attaccare.",
-            "compromises": compromessi
+            "summary": "Il limite principale sono le temperature gomme.",
+            "compromises": ["Ridurre sliding in uscita curva.", "Evitare cordoli aggressivi."],
         }
 
-    if stato_grip in ("medio", "basso"):
-        compromessi.append("Aumenta margine in frenata.")
-        compromessi.append("Evita sorpassi a rischio se la pista non e' pronta.")
+    if track_status in ("medio", "basso"):
         return {
             "push_level": "pista_non_pronta",
             "warning": True,
-            "summary": "Fuel e gomme possono anche essere buoni, ma la pista non permette un push pulito.",
-            "compromises": compromessi
+            "summary": "La pista non consente ancora un push pulito.",
+            "compromises": ["Aumentare margine in frenata.", "Evitare manovre ad alto rischio."],
+        }
+
+    if tyre_status_value == "ottimale" and track_status in ("ottimo", "buono") and tank_status != "critico":
+        if plan["status"] == "giro_qualifica":
+            return {
+                "push_level": "qualifica_singola",
+                "warning": True,
+                "summary": "Condizioni buone, ma fuel al limite: push massimo per un giro.",
+                "compromises": ["Spingere un solo giro.", "Poi tornare in gestione carburante."],
+            }
+
+        return {
+            "push_level": "spingi",
+            "warning": False,
+            "summary": "Fuel, grip e gomme sono favorevoli.",
+            "compromises": ["Monitorare il settore piu' caldo e gli eventi di slip."],
         }
 
     return {
         "push_level": "gestisci",
         "warning": False,
         "summary": "Situazione mista: ritmo controllato e rivalutazione al prossimo giro.",
-        "compromises": ["Monitorare fuel, grip e temperatura gomme prima di autorizzare il push."]
+        "compromises": ["Monitorare fuel, grip e temperatura gomme."],
     }
+
 
 
 class StrategyEvaluator:
@@ -313,29 +287,30 @@ class StrategyEvaluator:
         self.last_laps = last_laps
         self.lap_history = deque(maxlen=last_laps)
 
-    def load_history(self, lap_history):
-        for lap in lap_history[-self.last_laps:]:
+    def load_history(self, laps):
+        for lap in laps[-self.last_laps:]:
             self.lap_history.append(lap)
 
-    def add_lap(self, lap_payload):
-        self.lap_history.append(lap_payload)
+    def add_lap(self, lap):
+        self.lap_history.append(lap)
 
-        hybrid = hybrid_strategy(lap_payload)
-        fuel_plan = fuel_prediction(lap_payload)
-        advices = [
-            check_tyre_core(lap_payload),
-            fuel_level(lap_payload),
-            fuel_plan["message"],
-            grip(lap_payload),
-            sector_temperature_advice(list(self.lap_history), self.last_laps),
-            f"Strategia: {hybrid['summary']}",
+        plan = fuel_plan(lap)
+        strategy = driving_strategy(lap)
+        advice = [
+            tyre_advice(lap),
+            fuel_advice(lap),
+            plan["message"],
+            grip_advice(lap),
+            slip_advice(lap),
+            tyre_temperature_trend_advice(list(self.lap_history), self.last_laps),
+            f"Strategia: {strategy['summary']}",
         ]
 
         return {
-            "strategy_advice": " | ".join(advices),
-            "strategy_warning": hybrid["warning"],
-            "strategy_push_level": hybrid["push_level"],
-            "strategy_compromises": hybrid["compromises"],
-            "fuel_laps_possible": fuel_plan["laps_possible"],
-            "fuel_strategy_status": fuel_plan["status"],
+            "strategy_advice": " | ".join(advice),
+            "strategy_warning": strategy["warning"],
+            "strategy_push_level": strategy["push_level"],
+            "strategy_compromises": strategy["compromises"],
+            "fuel_laps_possible": plan["laps_possible"],
+            "fuel_strategy_status": plan["status"],
         }

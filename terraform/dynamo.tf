@@ -13,4 +13,16 @@ resource "aws_dynamodb_table" "analytics_dashboard_dynamo" {
     name = "timestamp" # <--- Deve coincidere con la range_key
     type = "S"
   }
+
+  attribute {
+    name = "user_id"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "user-timestamp-index"
+    hash_key        = "user_id"
+    range_key       = "timestamp"
+    projection_type = "ALL"
+  }
 }

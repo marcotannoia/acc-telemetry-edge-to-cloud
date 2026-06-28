@@ -2,13 +2,13 @@ import os
 import time
 import json
 from datetime import datetime
-import sys
 from pyaccsharedmemory import accSharedMemory  
 from awscrt import io, mqtt
 from awsiot import mqtt_connection_builder
+from cognito_auth import login_cognito_user
 
-# Soglia abbassata per rilevare i micro-slittamenti su asfalto
-SLIP_THRESHOLD = 4.0 
+SLIP_THRESHOLD = 4.0 # soglia slip
+
 # setup della comunicazione mqtt
 def setup_mqtt_connection():
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -46,6 +46,7 @@ def setup_mqtt_connection():
 
 
 def start_local_test():
+    user_id = login_cognito_user()
     asm = accSharedMemory()
     mqtt_conn = setup_mqtt_connection()
 
@@ -53,6 +54,9 @@ def start_local_test():
     tyre_stint_laps = 0
     was_in_pit = False
     last_tyre_set = None
+    last_session_signature = None
+    session_id = None
+    session_started_at = None
 
  # -- INIZIALIZZAZIONE DATI GIRO   
     current_lap_data = { 
@@ -103,6 +107,7 @@ def start_local_test():
             completed_laps = graphics.completed_lap
             num_laps = graphics.number_of_laps
             position = graphics.position
+            session_index = getattr(graphics, "session_index", None)
             current_tyre_set = getattr(graphics, "current_tyre_set", None) #vedo se e un dato disponibile
             strategy_tyre_set = getattr(graphics, "strategy_tyre_set", None)
             mfd_tyre_set = getattr(graphics, "mfd_tyre_set", None)
@@ -110,6 +115,23 @@ def start_local_test():
             slip_fr = physics.wheel_slip.front_right
             slip_rl = physics.wheel_slip.rear_left
             slip_rr = physics.wheel_slip.rear_right
+
+#---------- ALGORITMO DI CONTROLLO FIRMA --
+            session_signature = (static.player_name, static.track, session_type, session_index)
+            lap_counter_reset = (
+                last_completed_lap > 0
+                and completed_laps >= 0
+                and completed_laps < last_completed_lap
+            )
+            if session_signature != last_session_signature or lap_counter_reset: # se ce stato un cambio 
+                session_started_at = datetime.now().strftime("%Y%m%d%H%M%S") # salvo il timestamp
+                session_id = "_".join(
+                    str(value).replace("\u0000", "").strip().replace(" ", "-")
+                    for value in (*session_signature, session_started_at)
+                )
+                last_session_signature = session_signature
+                if lap_counter_reset:
+                    last_completed_lap = 0
 
             # -- casistica di pit -> reset eta gomme
             in_pit = graphics.is_in_pit if hasattr(graphics, 'is_in_pit') else False
@@ -250,6 +272,10 @@ def start_local_test():
                 # COSTRUZIONE DEL PAYLOAD
                 payload = {
                     "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "user_id": user_id,
+                    "session_id": session_id,
+                    "session_started_at": session_started_at,
+                    "session_index": session_index,
                     "track": static.track,
                     "driver": static.player_name, 
                     "session_type": session_type, 

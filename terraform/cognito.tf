@@ -2,6 +2,10 @@ resource "aws_cognito_user_pool" "analytics_dashboard_users" {
   name                     = "analytics_dashboard_users"
   auto_verified_attributes = ["email"]
 
+  admin_create_user_config {
+    allow_admin_create_user_only = true
+  }
+
   password_policy {
     minimum_length    = 8
     require_lowercase = true
@@ -31,36 +35,29 @@ resource "aws_cognito_user_pool" "analytics_dashboard_users" {
 }
 
 resource "aws_cognito_user_pool_client" "client" {
-  name            = "analytics_dashboard_cognito_client"
-  user_pool_id    = aws_cognito_user_pool.analytics_dashboard_users.id
-  generate_secret = false
+  name                                 = "analytics_dashboard_cognito_client"
+  user_pool_id                         = aws_cognito_user_pool.analytics_dashboard_users.id
+  generate_secret                      = false
+  allowed_oauth_flows_user_pool_client = true
+  allowed_oauth_flows                  = ["code"]
+  allowed_oauth_scopes                 = ["email", "openid", "profile"]
+  callback_urls                        = ["http://localhost:8765/callback"]
+  logout_urls                          = ["http://localhost:8765/logout"]
+  supported_identity_providers         = ["COGNITO"]
+  prevent_user_existence_errors        = "ENABLED"
 }
 
-variable "google_client_id" {
-  description = "Client ID di Google OAuth"
-  type        = string
-  sensitive   = true
+resource "aws_cognito_user_pool_domain" "analytics_dashboard_domain" {
+  domain       = var.cognito_domain_prefix
+  user_pool_id = aws_cognito_user_pool.analytics_dashboard_users.id
 }
 
-variable "google_client_secret" {
-  description = "Client Secret di Google OAuth"
-  type        = string
-  sensitive   = true
+output "cognito_client_id" {
+  value       = aws_cognito_user_pool_client.client.id
+  description = "Client ID da usare in COGNITO_CLIENT_ID per il login locale edge."
 }
 
-resource "aws_cognito_identity_provider" "google_provider" {
-  user_pool_id  = aws_cognito_user_pool.analytics_dashboard_users.id
-  provider_name = "Google"
-  provider_type = "Google"
-
-  provider_details = {
-    authorize_scopes = "email openid profile"
-    client_id        = var.google_client_id
-    client_secret    = var.google_client_secret
-  }
-
-  attribute_mapping = {
-    email    = "email"
-    username = "sub"
-  }
+output "cognito_domain" {
+  value       = "${aws_cognito_user_pool_domain.analytics_dashboard_domain.domain}.auth.${data.aws_region.current.name}.amazoncognito.com"
+  description = "Dominio Hosted UI da usare in COGNITO_DOMAIN per il login locale edge."
 }
