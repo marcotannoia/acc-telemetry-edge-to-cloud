@@ -4,10 +4,30 @@ import json
 import os
 import secrets
 import webbrowser
+from pathlib import Path
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qs, urlencode, urlparse
 from urllib.request import Request, urlopen
 
+
+def _load_local_env():
+    env_path = Path(__file__).with_name(".env")
+    if not env_path.exists():
+        return
+
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+_load_local_env()
 
 COGNITO_CLIENT_ID = os.environ.get("COGNITO_CLIENT_ID", "")
 COGNITO_DOMAIN = os.environ.get("COGNITO_DOMAIN", "")
@@ -104,5 +124,5 @@ def login_cognito_user():
     )
     tokens = json.loads(urlopen(token_request, timeout=20).read().decode("utf-8")) # chiedo a cognito il token 
     user_id = _decode_jwt_payload(tokens["id_token"])["sub"] # estraggo lo user id
-    print("Login completato. Telemetria associata all'utente Cognito.")
+    print(f"Login completato. Telemetria associata all'utente Cognito: {user_id}")
     return user_id

@@ -86,7 +86,57 @@ resource "aws_lambda_function" "analytics_dashboard_lambda" {
   }
 }
 
-# 5. Permesso per permettere a IoT Core di invocare la Lambda
+# 5. API HTTP opzionale per testare la Lambda da un frontend locale
+resource "aws_apigatewayv2_api" "analytics_dashboard_test" {
+  count         = var.enable_test_frontend_api ? 1 : 0
+  name          = "analytics-dashboard-test-api"
+  protocol_type = "HTTP"
+
+  cors_configuration {
+    allow_headers = ["content-type"]
+    allow_methods = ["POST", "OPTIONS"]
+    allow_origins = var.test_frontend_cors_allowed_origins
+    max_age       = 3600
+  }
+}
+
+resource "aws_apigatewayv2_integration" "analytics_dashboard_test_lambda" {
+  count                  = var.enable_test_frontend_api ? 1 : 0
+  api_id                 = aws_apigatewayv2_api.analytics_dashboard_test[0].id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = aws_lambda_function.analytics_dashboard_lambda.invoke_arn
+  payload_format_version = "2.0"
+}
+
+resource "aws_apigatewayv2_route" "analytics_dashboard_test_post" {
+  count     = var.enable_test_frontend_api ? 1 : 0
+  api_id    = aws_apigatewayv2_api.analytics_dashboard_test[0].id
+  route_key = "POST /"
+  target    = "integrations/${aws_apigatewayv2_integration.analytics_dashboard_test_lambda[0].id}"
+}
+
+resource "aws_apigatewayv2_stage" "analytics_dashboard_test" {
+  count       = var.enable_test_frontend_api ? 1 : 0
+  api_id      = aws_apigatewayv2_api.analytics_dashboard_test[0].id
+  name        = "$default"
+  auto_deploy = true
+}
+
+resource "aws_lambda_permission" "allow_test_api" {
+  count         = var.enable_test_frontend_api ? 1 : 0
+  statement_id  = "AllowExecutionFromTestHttpApi"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.analytics_dashboard_lambda.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.analytics_dashboard_test[0].execution_arn}/*/*"
+}
+
+output "test_frontend_api_url" {
+  value       = var.enable_test_frontend_api ? aws_apigatewayv2_stage.analytics_dashboard_test[0].invoke_url : null
+  description = "Endpoint HTTP API da incollare nel frontend/index.html per test locali."
+}
+
+# 6. Permesso per permettere a IoT Core di invocare la Lambda
 resource "aws_lambda_permission" "allow_iot" {
   statement_id  = "AllowExecutionFromIoTCore"
   action        = "lambda:InvokeFunction"
@@ -95,7 +145,7 @@ resource "aws_lambda_permission" "allow_iot" {
   source_arn    = aws_iot_topic_rule.telemetry_rule.arn
 }
 
-# 6. L'Innesco (La Regola IoT): Intercetta MQTT e lancia la Lambda
+# 7. L'Innesco (La Regola IoT): Intercetta MQTT e lancia la Lambda
 resource "aws_iot_topic_rule" "telemetry_rule" {
   name    = "acc_telemetry_to_lambda"
   enabled = true

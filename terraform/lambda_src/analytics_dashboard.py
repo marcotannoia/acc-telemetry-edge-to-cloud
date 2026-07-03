@@ -25,7 +25,12 @@ table = dynamodb.Table(TABLE_NAME)
 def _response(status_code, body):
     return {
         "statusCode": status_code,
-        "headers": {"Content-Type": "application/json"},
+        "headers": {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Headers": "Content-Type",
+            "Access-Control-Allow-Methods": "OPTIONS,POST",
+        },
         "body": json.dumps(body, ensure_ascii=False),
     }
 
@@ -156,6 +161,16 @@ def enrich_lap_with_strategy(lap):
     return lap
 
 
+def health_check():
+    return _response(200, {
+        "message": "Lambda online.",
+        "dynamo_table": TABLE_NAME,
+        "default_user_id": DEFAULT_USER_ID,
+        "openai_secret_configured": bool(OPENAI_SECRET_ARN),
+        "openai_model": OPENAI_MODEL,
+    })
+
+
 def save_lap(payload):
     lap = dict(payload)
     lap["user_id"] = lap.get("user_id") or DEFAULT_USER_ID
@@ -191,18 +206,21 @@ def list_sessions(payload):
         summary = sessions.setdefault(session_id, {
             "session_id": session_id,
             "track": lap.get("track"),
+            "driver": lap.get("driver"),
             "session_type": lap.get("session_type"),
             "session_started_at": lap.get("session_started_at"),
             "first_lap": _lap_number(lap),
             "last_lap": _lap_number(lap),
             "lap_count": 0,
             "last_timestamp": lap.get("timestamp"),
+            "latest_lap": {},
         })
         lap_number = _lap_number(lap)
         summary["first_lap"] = min(summary["first_lap"], lap_number)
         summary["last_lap"] = max(summary["last_lap"], lap_number)
         summary["lap_count"] += 1
         summary["last_timestamp"] = lap.get("timestamp") or summary["last_timestamp"]
+        summary["latest_lap"] = compact_lap(lap)
 
     return _response(200, {
         "user_id": user_id,
@@ -385,9 +403,15 @@ def handle_ai_insight(payload):
 
 
 def handler(event, context):
+    method = event.get("requestContext", {}).get("http", {}).get("method") if isinstance(event, dict) else None
+    if method == "OPTIONS":
+        return _response(204, {})
+
     payload = _parse_event(event)
     payload["user_id"] = _event_user_id(event, payload)
 
+    if payload.get("action") == "health_check":
+        return health_check()
     if payload.get("action") == "list_sessions":
         return list_sessions(payload)
     if payload.get("action") == "get_session_laps":
