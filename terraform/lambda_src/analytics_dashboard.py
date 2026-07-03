@@ -278,15 +278,33 @@ def compact_lap(lap):
         "lap_time_ms": lap.get("lap_time_ms"),
         "is_valid_lap": lap.get("is_valid_lap"),
         "sector_times_ms": lap.get("sector_times_ms"),
+        "max_speed_kmh": lap.get("max_speed_kmh"),
+        "min_speed_kmh": lap.get("min_speed_kmh"),
+        "avg_gas_percent": lap.get("avg_gas_percent"),
+        "avg_brake_percent": lap.get("avg_brake_percent"),
+        "max_rpm": lap.get("max_rpm"),
+        "max_g_force": lap.get("max_g_force"),
         "fuel_left_L": lap.get("fuel_left_L"),
         "fuel_consumed_L": lap.get("fuel_consumed_L"),
+        "fuel_per_km_L": lap.get("fuel_per_km_L"),
         "fuel_laps_possible": lap.get("fuel_laps_possible"),
         "avg_tyre_core_C": lap.get("avg_tyre_core_C"),
+        "avg_tyre_inner_C": lap.get("avg_tyre_inner_C"),
+        "avg_tyre_middle_C": lap.get("avg_tyre_middle_C"),
+        "avg_tyre_outer_C": lap.get("avg_tyre_outer_C"),
         "avg_brake_temp_C": lap.get("avg_brake_temp_C"),
+        "mfd_tyre_pressure": lap.get("mfd_tyre_pressure"),
         "slip_events_by_sector": lap.get("slip_events_by_sector"),
         "max_slip_by_sector": lap.get("max_slip_by_sector"),
+        "max_slip_by_tyre": lap.get("max_slip_by_tyre"),
         "tyre_age_laps": lap.get("tyre_age_laps"),
+        "air_temp_C": lap.get("air_temp_C"),
+        "road_temp_C": lap.get("road_temp_C"),
         "track_grip_status": lap.get("track_grip_status"),
+        "remaining_laps": lap.get("remaining_laps"),
+        "position": lap.get("position"),
+        "gap_ahead_ms": lap.get("gap_ahead_ms"),
+        "gap_behind_ms": lap.get("gap_behind_ms"),
         "strategy_push_level": lap.get("strategy_push_level"),
         "strategy_warning": lap.get("strategy_warning"),
         "strategy_advice": lap.get("strategy_advice"),
@@ -323,7 +341,8 @@ def ask_openai_engineer(driver, track, question, laps):
                 "content": (
                     "Sei un assistente per un ingegnere di pista in Assetto Corsa "
                     "Competizione. Usa solo i dati forniti, non inventare telemetria "
-                    "mancante, distingui fatti osservati e ipotesi, e rispondi in italiano."
+                    "mancante, distingui fatti osservati e ipotesi, e rispondi in italiano. "
+                    "Usa un formato chiaro con frasi brevi: Priorita, Rischio, Azione, Monitoraggio."
                 ),
             },
             {

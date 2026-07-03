@@ -280,6 +280,9 @@ class PhysicsMap:
     final_ff: float
 
     brake_temp: Wheels
+    tyre_temp_inner: Wheels
+    tyre_temp_middle: Wheels
+    tyre_temp_outer: Wheels
     clutch: float
 
     is_ai_controlled: bool
@@ -666,6 +669,9 @@ def read_physic_map(physic_map: accSM) -> PhysicsMap:
         Vector3f(*temp["localAngularVel"]),
         temp["FinalFF"],
         Wheels(*temp["brakeTemp"]),
+        Wheels(*temp["tyreTempI"]),
+        Wheels(*temp["tyreTempM"]),
+        Wheels(*temp["tyreTempO"]),
         temp["clutch"],
         bool(temp["isAIControlled"]),
         ContactPoint.from_list(temp["tyreContactPoint"]),

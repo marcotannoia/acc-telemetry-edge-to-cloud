@@ -242,7 +242,7 @@ label {
 
 .metrics {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 12px;
   margin-bottom: 12px;
 }
@@ -263,13 +263,22 @@ label {
   font-size: 28px;
 }
 
+.metric-bad strong {
+  color: var(--red);
+}
+
+.metric-good strong {
+  color: #22c55e;
+}
+
 .chart-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
   gap: 12px;
 }
 
 .chart-panel {
+  position: relative;
   padding: 16px;
 }
 
@@ -282,9 +291,90 @@ label {
   height: 240px;
 }
 
-.insight-panel {
+.expand-action {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: grid;
+  width: 38px;
+  min-height: 38px;
+  place-items: center;
+  border-color: var(--line);
+  border-radius: 8px;
+  background: #000;
+  padding: 0;
+}
+
+.expand-action:hover {
+  border-color: var(--red);
+}
+
+.expand-glyph {
+  position: relative;
+  width: 17px;
+  height: 17px;
+}
+
+.expand-glyph::before,
+.expand-glyph::after {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  content: '';
+}
+
+.expand-glyph::before {
+  top: 0;
+  right: 0;
+  border-top: 2px solid var(--text);
+  border-right: 2px solid var(--text);
+}
+
+.expand-glyph::after {
+  bottom: 0;
+  left: 0;
+  border-bottom: 2px solid var(--text);
+  border-left: 2px solid var(--text);
+}
+
+.chart-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.84);
+  padding: 28px;
+}
+
+.chart-modal-panel {
+  width: min(1280px, 100%);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #000;
+  padding: 18px;
+}
+
+.chart-modal-head {
   display: flex;
+  align-items: center;
   justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.chart-modal-head h2 {
+  margin: 0;
+  font-size: clamp(28px, 4vw, 56px);
+}
+
+.chart-body-expanded {
+  height: min(72vh, 720px);
+}
+
+.insight-panel {
+  display: grid;
+  grid-template-columns: 1fr;
   gap: 16px;
   margin-top: 12px;
   padding: 18px;
@@ -293,6 +383,93 @@ label {
 .insight-panel p {
   margin: 0;
   color: var(--muted);
+}
+
+.insight-column {
+  min-width: 0;
+}
+
+.ai-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.ai-head .primary-action {
+  min-width: 150px;
+}
+
+.ai-muted,
+.ai-meta {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.ai-meta {
+  margin-bottom: 12px;
+}
+
+.ai-answer {
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.ai-section-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.ai-section {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #030303;
+  padding: 14px;
+}
+
+.ai-section h3 {
+  margin: 0 0 10px;
+  color: var(--text);
+  font-size: 15px;
+  text-transform: uppercase;
+}
+
+.ai-section ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.ai-section li::marker {
+  color: var(--red);
+}
+
+.advice-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.advice-list li::marker {
+  color: var(--red);
+}
+
+.compact-error {
+  margin-bottom: 12px;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.65;
 }
 
 @media (max-width: 840px) {
@@ -306,9 +483,18 @@ label {
   }
 
   .page-head,
-  .insight-panel {
+  .ai-head,
+  .chart-modal-head {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .insight-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .chart-modal {
+    padding: 10px;
   }
 
   .metrics,

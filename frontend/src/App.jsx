@@ -7,6 +7,21 @@ import SessionList from './components/SessionList.jsx'
 import { api } from './services/api.js'
 import { readRuntimeConfig } from './services/runtimeConfig.js'
 
+function aiStorageKey(sessionId) {
+  return `acc-telemetry-ai:${sessionId}`
+}
+
+function readStoredAiInsight(session) {
+  if (!session?.session_id) return null
+
+  try {
+    const saved = window.localStorage.getItem(aiStorageKey(session.session_id))
+    return saved ? JSON.parse(saved) : null
+  } catch {
+    return null
+  }
+}
+
 function App() {
   const [view, setView] = useState('login')
   const [status, setStatus] = useState('Pronto')
@@ -18,15 +33,18 @@ function App() {
   const [selectedSession, setSelectedSession] = useState(null)
   const [laps, setLaps] = useState([])
   const [isLive, setIsLive] = useState(false)
+  const [aiInsight, setAiInsight] = useState(null)
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState('')
 
-  const loadSessions = useCallback(async () => {
-    setStatus('Carico sessioni')
+  const loadSessions = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setStatus('Carico sessioni')
     const data = await api({ action: 'list_sessions', user_id: userId, limit: 300 }, apiUrl)
     const ordered = [...(data.sessions || [])].sort((a, b) =>
       String(b.last_timestamp || '').localeCompare(String(a.last_timestamp || '')),
     )
     setSessions(ordered)
-    setStatus('Sessioni aggiornate')
+    if (!silent) setStatus('Sessioni aggiornate')
     return ordered
   }, [apiUrl, userId])
 
@@ -55,28 +73,87 @@ function App() {
       return
     }
     setSelectedSession(latest)
-    setLaps(await loadLaps(latest))
+    setAiError('')
+    setAiInsight(readStoredAiInsight(latest))
+    const liveLaps = await loadLaps(latest)
+    setLaps(liveLaps)
+    setStatus(`Live avviata - ${liveLaps.length} giri`)
     setView('dashboard')
   }
 
   async function openSession(session) {
     setIsLive(false)
     setSelectedSession(session)
+    setAiError('')
+    setAiInsight(readStoredAiInsight(session))
     setLaps(await loadLaps(session))
     setView('dashboard')
+  }
+
+  async function askAiEngineer() {
+    if (!selectedSession) return
+
+    setAiLoading(true)
+    setAiError('')
+    setStatus('Analisi AI in corso')
+
+    try {
+      const data = await api({
+        action: 'ai_insight',
+        user_id: userId,
+        session_id: selectedSession.session_id,
+        track: selectedSession.track,
+        driver: selectedSession.driver,
+        limit: 80,
+        question: (
+          'Analizza gli ultimi giri live. Rispondi con priorita, rischio principale, '
+          + 'azione consigliata e dato da monitorare nei prossimi giri.'
+        ),
+      }, apiUrl)
+
+      const insight = {
+        generatedAt: new Date().toISOString(),
+        lapsAnalyzed: data.laps_analyzed,
+        model: data.model,
+        question: data.question,
+        text: data.ai_engineer_insight,
+      }
+
+      window.localStorage.setItem(aiStorageKey(selectedSession.session_id), JSON.stringify(insight))
+      setAiInsight(insight)
+      setStatus('Consiglio AI aggiornato')
+    } catch (error) {
+      setAiError(error.message)
+      setStatus('Consiglio AI non disponibile')
+    } finally {
+      setAiLoading(false)
+    }
   }
 
   useEffect(() => {
     if (!isLive || view !== 'dashboard' || !selectedSession) return undefined
 
     const timer = window.setInterval(async () => {
-      const updatedLaps = await loadLaps(selectedSession)
-      setLaps(updatedLaps)
-      setStatus('Live aggiornata')
+      try {
+        const ordered = await loadSessions({ silent: true })
+        const latestSession = ordered[0] || selectedSession
+
+        if (latestSession.session_id !== selectedSession.session_id) {
+          setSelectedSession(latestSession)
+          setAiError('')
+          setAiInsight(readStoredAiInsight(latestSession))
+        }
+
+        const updatedLaps = await loadLaps(latestSession)
+        setLaps(updatedLaps)
+        setStatus(`Live aggiornata - ${updatedLaps.length} giri`)
+      } catch (error) {
+        setStatus(`Live non aggiornata: ${error.message}`)
+      }
     }, 5000)
 
     return () => window.clearInterval(timer)
-  }, [isLive, loadLaps, selectedSession, view])
+  }, [isLive, loadLaps, loadSessions, selectedSession, view])
 
   const loadConfig = useCallback(async () => {
     try {
@@ -121,9 +198,12 @@ function App() {
       {view === 'dashboard' && (
         <Dashboard
           isLive={isLive}
+          aiError={aiError}
+          aiInsight={aiInsight}
+          aiLoading={aiLoading}
           laps={laps}
+          onAskAi={askAiEngineer}
           session={selectedSession}
-          userId={userId}
           onBack={() => setView('menu')}
         />
       )}

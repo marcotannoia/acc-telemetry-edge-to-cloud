@@ -86,6 +86,9 @@ def start_local_test():
         "max_speed": 0,
         "min_speed": 999,
         "temps_core": {"fl": [], "fr": [], "rl": [], "rr": []},
+        "temps_tyre_inner": {"fl": [], "fr": [], "rl": [], "rr": []},
+        "temps_tyre_middle": {"fl": [], "fr": [], "rl": [], "rr": []},
+        "temps_tyre_outer": {"fl": [], "fr": [], "rl": [], "rr": []},
         "temps_brake": {"fl": [], "fr": [], "rl": [], "rr": []},
         "tyre_core": {"fl": [], "fr": [], "rl": [], "rr": []},
         "gas_percent": [], 
@@ -209,6 +212,21 @@ def start_local_test():
             current_lap_data["temps_core"]["fr"].append(physics.tyre_core_temp.front_right)
             current_lap_data["temps_core"]["rl"].append(physics.tyre_core_temp.rear_left)
             current_lap_data["temps_core"]["rr"].append(physics.tyre_core_temp.rear_right)
+
+            current_lap_data["temps_tyre_inner"]["fl"].append(physics.tyre_temp_inner.front_left)
+            current_lap_data["temps_tyre_inner"]["fr"].append(physics.tyre_temp_inner.front_right)
+            current_lap_data["temps_tyre_inner"]["rl"].append(physics.tyre_temp_inner.rear_left)
+            current_lap_data["temps_tyre_inner"]["rr"].append(physics.tyre_temp_inner.rear_right)
+
+            current_lap_data["temps_tyre_middle"]["fl"].append(physics.tyre_temp_middle.front_left)
+            current_lap_data["temps_tyre_middle"]["fr"].append(physics.tyre_temp_middle.front_right)
+            current_lap_data["temps_tyre_middle"]["rl"].append(physics.tyre_temp_middle.rear_left)
+            current_lap_data["temps_tyre_middle"]["rr"].append(physics.tyre_temp_middle.rear_right)
+
+            current_lap_data["temps_tyre_outer"]["fl"].append(physics.tyre_temp_outer.front_left)
+            current_lap_data["temps_tyre_outer"]["fr"].append(physics.tyre_temp_outer.front_right)
+            current_lap_data["temps_tyre_outer"]["rl"].append(physics.tyre_temp_outer.rear_left)
+            current_lap_data["temps_tyre_outer"]["rr"].append(physics.tyre_temp_outer.rear_right)
 #------------ TEMPS BRAKE: ogni 50ms --
 
             current_lap_data["temps_brake"]["fl"].append(physics.brake_temp.front_left)
@@ -284,6 +302,9 @@ def start_local_test():
 
 #----------------CALCOLO AVG 
                 avg_core = {k: round(sum(v)/len(v), 2) for k, v in current_lap_data["temps_core"].items() if v}
+                avg_tyre_inner = {k: round(sum(v)/len(v), 2) for k, v in current_lap_data["temps_tyre_inner"].items() if v}
+                avg_tyre_middle = {k: round(sum(v)/len(v), 2) for k, v in current_lap_data["temps_tyre_middle"].items() if v}
+                avg_tyre_outer = {k: round(sum(v)/len(v), 2) for k, v in current_lap_data["temps_tyre_outer"].items() if v}
                 avg_brake = {k: round(sum(v)/len(v), 2) for k, v in current_lap_data["temps_brake"].items() if v}
                 avg_gas = sum(current_lap_data["gas_percent"]) / len(current_lap_data["gas_percent"]) if current_lap_data["gas_percent"] else 0
                 avg_brake_pedal = sum(current_lap_data["brake_percent"]) / len(current_lap_data["brake_percent"]) if current_lap_data["brake_percent"] else 0
@@ -317,6 +338,9 @@ def start_local_test():
                     "track_length_km": round(track_length_km, 3),
                     "max_g_force": round(current_lap_data["max_g_force"], 2),
                     "avg_tyre_core_C": avg_core,
+                    "avg_tyre_inner_C": avg_tyre_inner,
+                    "avg_tyre_middle_C": avg_tyre_middle,
+                    "avg_tyre_outer_C": avg_tyre_outer,
                     "avg_brake_temp_C": avg_brake,
                     "slip_events_by_sector": current_lap_data["slip_events_by_sector"],
                     "max_slip_by_sector": {
@@ -336,6 +360,8 @@ def start_local_test():
                     "number_of_laps": num_laps, 
                     "remaining_laps": remaining_laps,
                     "position": position,
+                    "gap_ahead_ms": gap_ahead,
+                    "gap_behind_ms": gap_behind,
                     "fuel_left_L": round(physics.fuel, 3)
                 }
 
@@ -357,6 +383,9 @@ def start_local_test():
                     "fuel_start": physics.fuel, 
                     "max_g_force": 0, "max_speed": 0, "min_speed": 999,
                     "temps_core": {"fl": [], "fr": [], "rl": [], "rr": []},
+                    "temps_tyre_inner": {"fl": [], "fr": [], "rl": [], "rr": []},
+                    "temps_tyre_middle": {"fl": [], "fr": [], "rl": [], "rr": []},
+                    "temps_tyre_outer": {"fl": [], "fr": [], "rl": [], "rr": []},
                     "temps_brake": {"fl": [], "fr": [], "rl": [], "rr": []},
                     "gas_percent": [], "brake_percent": [], "rpm": [],
                     "best_time": current_lap_data["best_time"],

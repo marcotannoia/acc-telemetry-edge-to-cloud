@@ -1,22 +1,26 @@
-*.tfvars
+# Python
+__pycache__/
+*.py[cod]
+venv/
 .env
-*.tfstate
-*.tfstate.backup
-parameters.txt
-test_acc.pyallora terraform/.terraform/
-# Local .terraform directories
-.terraform/
-**/.terraform/*
 
-# .tfstate files
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/*.local
+frontend/public/runtime-config.json
+
+# Terraform locale/sensibile
+terraform/.terraform/
 *.tfstate
 *.tfstate.*
-
-# .tfvars files (se in futuro li userai per variabili sensibili)
 *.tfvars
 *.tfvars.json
 
+# Credenziali e certificati locali
+parameters.txt
 *.pem*
 *.key*
 
-da vedere/*
+# File temporanei
+*.log

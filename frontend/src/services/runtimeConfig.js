@@ -1,11 +1,13 @@
-import { defaultApiUrl } from './api.js'
+import { defaultApiUrl } from './api.js' // prendo url di api gateaway
+
+// -- FUNZIONE DI LETTURA ENDPOINT E USERID --  
 
 export async function readRuntimeConfig() {
   const response = await fetch(`/runtime-config.json?ts=${Date.now()}`, {
     cache: 'no-store',
   })
 
-  if (!response.ok) {
+  if (!response.ok) { // se non esiste
     throw new Error('Avvia prima analytics_backend/test_realtime.py per generare la configurazione.')
   }
 
