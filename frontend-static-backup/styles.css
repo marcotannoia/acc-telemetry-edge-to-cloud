@@ -11,24 +11,39 @@
   --red-soft: rgba(229, 9, 20, 0.18);
 }
 
+
 * {
-  box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: "Parkinsans", "Quicksand", Arial, sans-serif;
 }
 
 body {
   margin: 0;
   min-height: 100vh;
-  background:
-    linear-gradient(120deg, rgba(229, 9, 20, 0.14), transparent 34%),
-    radial-gradient(circle at 80% 0%, rgba(229, 9, 20, 0.18), transparent 28%),
-    var(--bg);
+  background: black; 
   color: var(--text);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: "Parkinsans", "Quicksand", Arial, sans-serif;
 }
 
 button,
 input {
   font: inherit;
+}
+
+.app-hero {
+  position: relative;
+  min-height: auto;
+  display: block;
+  text-align: center;
+  padding: 0 16px;
+}
+
+.hero-content h1 {
+  margin: 0;
+  font-size: clamp(56px, 6vw, 96px);
+  line-height: 0.92;
 }
 
 .app-header {
@@ -43,6 +58,22 @@ input {
   border-bottom: 1px solid var(--line);
   background: rgba(5, 5, 6, 0.92);
   backdrop-filter: blur(12px);
+}
+
+.app-salute { 
+  position: relative;
+  text-align: center;
+}
+
+.app-salute-text {
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.app-salute-text h1 {
+  margin: 0;
+  font-size: clamp(34px, 4vw, 64px);
+  line-height: 1.08;
 }
 
 .brand {
@@ -72,7 +103,7 @@ input {
 .app-shell {
   width: min(1180px, calc(100vw - 32px));
   margin: 0 auto;
-  padding: 44px 0 56px;
+  padding: 56px 0;
 }
 
 .view {
@@ -85,9 +116,12 @@ input {
 
 .auth-view,
 .menu-view {
-  min-height: calc(100vh - 164px);
-  display: grid;
-  place-items: center;
+  min-height: calc(100vh - 112px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 56px;
 }
 
 .auth-panel,
@@ -97,8 +131,9 @@ input {
 .insight-panel {
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent), var(--surface);
+  background: black;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+  text-align: center;
 }
 
 .auth-panel,

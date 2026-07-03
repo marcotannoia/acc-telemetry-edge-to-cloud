@@ -8,6 +8,27 @@ from awsiot import mqtt_connection_builder
 from cognito_auth import login_cognito_user
 
 SLIP_THRESHOLD = 4.0 # soglia slip
+IOT_ENDPOINT = "a2r71e9visju80-ats.iot.eu-south-1.amazonaws.com"
+FRONTEND_API_URL = "https://iu9g1sfq9j.execute-api.eu-south-1.amazonaws.com/"
+
+
+def write_frontend_runtime_config(user_id):
+    """Scrive la configurazione che React legge all'avvio."""
+    repo_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    public_dir = os.path.join(repo_dir, "frontend", "public")
+    os.makedirs(public_dir, exist_ok=True)
+
+    config_path = os.path.join(public_dir, "runtime-config.json")
+    config = {
+        "user_id": user_id,
+        "api_url": FRONTEND_API_URL,
+        "iot_endpoint": IOT_ENDPOINT,
+    }
+
+    with open(config_path, "w", encoding="utf-8") as config_file:
+        json.dump(config, config_file, indent=2)
+
+    print(f"Configurazione frontend aggiornata: {config_path}")
 
 # setup della comunicazione mqtt
 def setup_mqtt_connection():
@@ -15,15 +36,14 @@ def setup_mqtt_connection():
     cert_path = os.path.join(script_dir, "device-certificate.pem.crt") 
     key_path = os.path.join(script_dir, "device-private.pem.key") #chiave segreta del certificato
     ca_path = os.path.join(script_dir, "AmazonRootCA1.pem") #questa serve al client per controllare se il server aws sia vero
-    iot_endpoint = "a2r71e9visju80-ats.iot.eu-south-1.amazonaws.com"
     event_loop_group = io.EventLoopGroup(1) #serve per creare cicli di comunicazione, uso un solo thread
     host_resolver = io.DefaultHostResolver(event_loop_group) # trasforma endpoint in ip reale
     client_bootstrap = io.ClientBootstrap(event_loop_group, host_resolver) # prende quell ip e quel thread e crea un client 
 
-    print(f"Inizializzazione TLS... Connessione a: {iot_endpoint}")
+    print(f"Inizializzazione TLS... Connessione a: {IOT_ENDPOINT}")
 
     mqtt_connection = mqtt_connection_builder.mtls_from_path(
-        endpoint=iot_endpoint,
+        endpoint=IOT_ENDPOINT,
         cert_filepath=cert_path,
         pri_key_filepath=key_path,
         client_bootstrap=client_bootstrap,
@@ -47,6 +67,7 @@ def setup_mqtt_connection():
 
 def start_local_test():
     user_id = login_cognito_user()
+    write_frontend_runtime_config(user_id)
     asm = accSharedMemory()
     mqtt_conn = setup_mqtt_connection()
 
