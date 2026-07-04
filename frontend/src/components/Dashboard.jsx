@@ -38,12 +38,13 @@ const sectorColors = {
   3: '#8b8b94',
 }
 
-// -- 
-function formatLapTime(ms) {
+// -- FUNZIONI DI CONVERSIONI GENERICHE --
+
+function formatLapTime(ms) { // trasforma il tempo del giro in formato leggibile 
   const value = Number(ms)
   if (!Number.isFinite(value) || value <= 0) return '-'
-  const minutes = Math.floor(value / 60000)
-  const seconds = ((value % 60000) / 1000).toFixed(3).padStart(6, '0')
+  const minutes = Math.floor(value / 60000) // ottengo i minuti interi
+  const seconds = ((value % 60000) / 1000).toFixed(3).padStart(6, '0') // ottengo i secondi
   return `${minutes}:${seconds}`
 }
 
@@ -62,7 +63,7 @@ function lapSecondsFromMs(value) {
   return seconds !== null && seconds > 20 && seconds < 600 ? seconds : null
 }
 
-function percentFromRatio(value) {
+function percentFromRatio(value) { // perche gli avg di brake e gas non sono %
   const number = numberOrNull(value)
   return number === null ? null : number * 100
 }
