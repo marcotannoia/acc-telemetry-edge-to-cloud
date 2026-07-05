@@ -240,11 +240,32 @@ label {
   font-size: 13px;
 }
 
-.metrics {
+.metric-sections {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 18px;
+  margin-bottom: 22px;
+}
+
+.metric-section {
+  min-width: 0;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.metric-section h2,
+.chart-section h2 {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
   gap: 12px;
-  margin-bottom: 12px;
 }
 
 .metric {
@@ -269,6 +290,15 @@ label {
 
 .metric-good strong {
   color: #22c55e;
+}
+
+.chart-sections {
+  display: grid;
+  gap: 24px;
+}
+
+.chart-section {
+  min-width: 0;
 }
 
 .chart-grid {
@@ -497,7 +527,8 @@ button:disabled {
     padding: 10px;
   }
 
-  .metrics,
+  .metric-sections,
+  .metric-grid,
   .chart-grid {
     grid-template-columns: 1fr;
   }

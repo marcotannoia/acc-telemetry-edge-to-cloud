@@ -63,6 +63,53 @@ function lapSecondsFromMs(value) {
   return seconds !== null && seconds > 20 && seconds < 600 ? seconds : null
 }
 
+function rawSectorTimeMs(lap, index) {
+  const sectorTimes = lap?.sector_times_ms
+  const sectorKey = String(index + 1)
+  const rawValue = Array.isArray(sectorTimes)
+    ? sectorTimes[index]
+    : sectorTimes?.[index] ?? sectorTimes?.[sectorKey]
+  const value = numberOrNull(rawValue)
+  return value !== null && value > 0 ? value : null
+}
+
+function normalizedSectorTimesMs(lap) {
+  const lapTime = numberOrNull(lap?.lap_time_ms)
+  const sectorOne = rawSectorTimeMs(lap, 0)
+  const sectorTwoRaw = rawSectorTimeMs(lap, 1)
+  const sectorThreeRaw = rawSectorTimeMs(lap, 2)
+
+  if (lapTime === null || sectorOne === null || sectorTwoRaw === null) {
+    return [sectorOne, sectorTwoRaw, sectorThreeRaw]
+  }
+
+  const directSectorThree = lapTime - sectorOne - sectorTwoRaw
+  const splitSectorThree = lapTime - sectorTwoRaw
+  const sectorTwoLooksLikeSplit = (
+    sectorTwoRaw > sectorOne
+    && sectorTwoRaw < lapTime
+    && (directSectorThree <= 10000 || sectorTwoRaw / lapTime > 0.5 || sectorOne + sectorTwoRaw > lapTime)
+  )
+
+  if (sectorTwoLooksLikeSplit) {
+    return [
+      sectorOne,
+      sectorTwoRaw - sectorOne,
+      sectorThreeRaw ?? splitSectorThree,
+    ].map((value) => (value > 0 ? value : null))
+  }
+
+  return [
+    sectorOne,
+    sectorTwoRaw,
+    sectorThreeRaw ?? directSectorThree,
+  ].map((value) => (value > 0 ? value : null))
+}
+
+function sectorTimeMs(lap, index) {
+  return normalizedSectorTimesMs(lap)[index] ?? null
+}
+
 function percentFromRatio(value) { // perche gli avg di brake e gas non sono %
   const number = numberOrNull(value)
   return number === null ? null : number * 100
@@ -228,84 +275,109 @@ function Dashboard({
   const brakeTemp = averageWheelMap(lastLap, 'avg_brake_temp_C')
   const delta = lapDelta(laps)
 
-  const chartGroups = useMemo(() => {
-    const groups = [
+  const chartSections = useMemo(() => {
+    const sections = [
       {
-        title: 'Tempi giro',
-        datasets: [
-          scalarDataset(laps, 'lap_time_ms', 'Lap time s', '#ef0712', lapSecondsFromMs),
-          scalarDataset(laps, 'best_time_ms', 'Best time s', '#ffffff', lapSecondsFromMs),
+        title: 'Ritmo',
+        groups: [
+          {
+            title: 'Tempi giro',
+            datasets: [
+              scalarDataset(laps, 'lap_time_ms', 'Giro s', '#ef0712', lapSecondsFromMs),
+              scalarDataset(laps, 'best_time_ms', 'Migliore s', '#ffffff', lapSecondsFromMs),
+            ],
+          },
+          {
+            title: 'Settori',
+            datasets: sectors.map((sector, index) => ({
+              label: `Settore ${sector} s`,
+              borderColor: sectorColors[sector],
+              backgroundColor: `${sectorColors[sector]}22`,
+              data: laps.map((lap) => secondsFromMs(sectorTimeMs(lap, index))),
+            })),
+          },
         ],
       },
       {
-        title: 'Settori',
-        datasets: sectors.map((sector, index) => ({
-          label: `Settore ${sector} s`,
-          borderColor: sectorColors[sector],
-          backgroundColor: `${sectorColors[sector]}22`,
-          data: laps.map((lap) => secondsFromMs(lap?.sector_times_ms?.[index])),
-        })),
-      },
-      {
-        title: 'Carburante',
-        datasets: [
-          scalarDataset(laps, 'fuel_left_L', 'Fuel residuo L', '#ef0712'),
-          scalarDataset(laps, 'fuel_consumed_L', 'Fuel consumato L', '#ffffff'),
-          scalarDataset(laps, 'fuel_laps_possible', 'Giri possibili', '#8b8b94'),
+        title: 'Carburante e guida',
+        groups: [
+          {
+            title: 'Carburante',
+            datasets: [
+              scalarDataset(laps, 'fuel_left_L', 'Fuel residuo L', '#ef0712'),
+              scalarDataset(laps, 'fuel_consumed_L', 'Fuel consumato L', '#ffffff'),
+              scalarDataset(laps, 'fuel_laps_possible', 'Giri possibili', '#8b8b94'),
+            ],
+          },
+          {
+            title: 'Velocita',
+            datasets: [
+              scalarDataset(laps, 'max_speed_kmh', 'Max km/h', '#ef0712'),
+              scalarDataset(laps, 'min_speed_kmh', 'Min km/h', '#ffffff'),
+            ],
+          },
+          {
+            title: 'G-force',
+            datasets: [scalarDataset(laps, 'max_g_force', 'Max G', '#ef0712')],
+          },
+          {
+            title: 'Pedali e RPM',
+            datasets: [
+              scalarDataset(laps, 'avg_gas_percent', 'Gas medio %', '#ef0712', percentFromRatio),
+              scalarDataset(laps, 'avg_brake_percent', 'Freno medio %', '#ffffff', percentFromRatio),
+              scalarDataset(laps, 'max_rpm', 'RPM max / 1000', '#8b8b94', (value) => {
+                const rpm = numberOrNull(value)
+                return rpm === null ? null : rpm / 1000
+              }),
+            ],
+          },
         ],
       },
       {
-        title: 'Velocita',
-        datasets: [
-          scalarDataset(laps, 'max_speed_kmh', 'Max km/h', '#ef0712'),
-          scalarDataset(laps, 'min_speed_kmh', 'Min km/h', '#ffffff'),
+        title: 'Gomme e freni',
+        groups: [
+          {
+            title: 'Temperatura gomme',
+            datasets: wheelDatasets(laps, 'avg_tyre_core_C', 'Core'),
+          },
+          {
+            title: 'Temperature freni',
+            datasets: wheelDatasets(laps, 'avg_brake_temp_C', 'Freno'),
+          },
+          {
+            title: 'Stint gomme',
+            datasets: [
+              scalarDataset(laps, 'tyre_age_laps', 'Giri gomme', '#ef0712'),
+              scalarDataset(laps, 'remaining_laps', 'Giri rimanenti', '#ffffff'),
+            ],
+          },
         ],
       },
       {
-        title: 'G-force',
-        datasets: [scalarDataset(laps, 'max_g_force', 'Max G', '#ef0712')],
-      },
-      {
-        title: 'Pedali e RPM',
-        datasets: [
-          scalarDataset(laps, 'avg_gas_percent', 'Gas medio %', '#ef0712', percentFromRatio),
-          scalarDataset(laps, 'avg_brake_percent', 'Freno medio %', '#ffffff', percentFromRatio),
-          scalarDataset(laps, 'max_rpm', 'RPM max / 1000', '#8b8b94', (value) => {
-            const rpm = numberOrNull(value)
-            return rpm === null ? null : rpm / 1000
-          }),
-        ],
-      },
-      {
-        title: 'Tyre core',
-        datasets: wheelDatasets(laps, 'avg_tyre_core_C', 'Core'),
-      },
-      {
-        title: 'Freni',
-        datasets: wheelDatasets(laps, 'avg_brake_temp_C', 'Freno'),
-      },
-      {
-        title: 'Slip gomme',
-        datasets: wheelDatasets(laps, 'max_slip_by_tyre', 'Slip'),
-      },
-      {
-        title: 'Slip per settore',
-        datasets: sectorDatasets(laps, 'max_slip_by_sector', 'Max slip'),
-      },
-      {
-        title: 'Eventi slip',
-        datasets: sectorDatasets(laps, 'slip_events_by_sector', 'Eventi'),
-      },
-      {
-        title: 'Stint gomme',
-        datasets: [
-          scalarDataset(laps, 'tyre_age_laps', 'Eta gomme', '#ef0712'),
-          scalarDataset(laps, 'remaining_laps', 'Giri rimanenti', '#ffffff'),
+        title: 'Slip',
+        groups: [
+          {
+            title: 'Slip gomme',
+            datasets: wheelDatasets(laps, 'max_slip_by_tyre', 'Slip'),
+          },
+          {
+            title: 'Slip per settore',
+            datasets: sectorDatasets(laps, 'max_slip_by_sector', 'Max slip'),
+          },
+          {
+            title: 'Eventi slip',
+            datasets: sectorDatasets(laps, 'slip_events_by_sector', 'Eventi'),
+          },
         ],
       },
     ]
 
-    return groups.filter((group) => group.datasets.some(hasData))
+    return sections
+      .map((section) => ({
+        ...section,
+        groups: section.groups.filter((group) => group.datasets.some(hasData)),
+      }))
+      .filter((section) => section.groups.length)
   }, [laps])
 
   return (
@@ -320,24 +392,42 @@ function Dashboard({
         </button>
       </div>
 
-      <div className="metrics">
-        <Metric label="Giro" value={formatLapProgress(lastLap)} />
-        <Metric
-          label="Delta prec."
-          value={formatLapDelta(delta)}
-          tone={delta?.deltaMs > 0 ? 'bad' : delta?.deltaMs < 0 ? 'good' : ''}
-        />
-        <Metric label="Best lap" value={bestLap ? formatLapTime(bestLap) : '-'} />
-        <Metric label="Posizione" value={lastLap.position || '-'} />
-        <Metric label="Gomme" value={tyreCore === null ? '-' : `${tyreCore.toFixed(1)} C`} />
-        <Metric label="Freni" value={brakeTemp === null ? '-' : `${brakeTemp.toFixed(0)} C`} />
-        <Metric label="Asfalto" value={metricNumber(lastLap.road_temp_C, ' C')} />
-        <Metric label="Aria" value={metricNumber(lastLap.air_temp_C, ' C')} />
+      <div className="metric-sections">
+        <MetricSection title="Sessione">
+          <Metric label="Giro" value={formatLapProgress(lastLap)} />
+          <Metric label="Posizione" value={lastLap.position || '-'} />
+        </MetricSection>
+
+        <MetricSection title="Ambiente">
+          <Metric label="Aria" value={metricNumber(lastLap.air_temp_C, ' C')} />
+          <Metric label="Asfalto" value={metricNumber(lastLap.road_temp_C, ' C')} />
+        </MetricSection>
+
+        <MetricSection title="Gomme">
+          <Metric label="Temp gomme" value={tyreCore === null ? '-' : `${tyreCore.toFixed(1)} C`} />
+          <Metric label="Stint gomme" value={metricNumber(lastLap.tyre_age_laps, '', 0)} />
+          <Metric label="Temp freni" value={brakeTemp === null ? '-' : `${brakeTemp.toFixed(0)} C`} />
+        </MetricSection>
+
+        <MetricSection title="Ritmo">
+          <Metric label="Giro migliore" value={bestLap ? formatLapTime(bestLap) : '-'} />
+          <Metric label="Giro precedente" value={formatLapTime(lastLap.lap_time_ms)} />
+          <Metric
+            label="Delta prec."
+            value={formatLapDelta(delta)}
+            tone={delta?.deltaMs > 0 ? 'bad' : delta?.deltaMs < 0 ? 'good' : ''}
+          />
+        </MetricSection>
       </div>
 
-      <div className="chart-grid">
-        {chartGroups.map((group) => (
-          <ChartPanel key={group.title} group={group} labels={labels} onExpand={() => setExpandedChart(group)} />
+      <div className="chart-sections">
+        {chartSections.map((section) => (
+          <ChartSection
+            key={section.title}
+            labels={labels}
+            section={section}
+            onExpand={(group) => setExpandedChart(group)}
+          />
         ))}
       </div>
 
@@ -388,12 +478,34 @@ function Dashboard({
   )
 }
 
+function MetricSection({ children, title }) {
+  return (
+    <section className="metric-section">
+      <h2>{title}</h2>
+      <div className="metric-grid">{children}</div>
+    </section>
+  )
+}
+
 function Metric({ label, tone, value }) {
   return (
     <article className={`metric ${tone ? `metric-${tone}` : ''}`}>
       <span>{label}</span>
       <strong>{value}</strong>
     </article>
+  )
+}
+
+function ChartSection({ labels, onExpand, section }) {
+  return (
+    <section className="chart-section">
+      <h2>{section.title}</h2>
+      <div className="chart-grid">
+        {section.groups.map((group) => (
+          <ChartPanel key={group.title} group={group} labels={labels} onExpand={() => onExpand(group)} />
+        ))}
+      </div>
+    </section>
   )
 }
 
