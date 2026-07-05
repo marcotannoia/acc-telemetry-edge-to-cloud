@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import './App.css'
 import Dashboard from './components/Dashboard.jsx'
 import Login from './components/Login.jsx'
@@ -22,6 +22,32 @@ function readStoredAiInsight(session) {
   }
 }
 
+function lapsDataKey(laps) {
+  return JSON.stringify((laps || []).map((lap) => ({
+    lap_number: lap.lap_number,
+    lap_time_ms: lap.lap_time_ms,
+    best_time_ms: lap.best_time_ms,
+    sector_times_ms: lap.sector_times_ms,
+    fuel_left_L: lap.fuel_left_L,
+    fuel_consumed_L: lap.fuel_consumed_L,
+    fuel_laps_possible: lap.fuel_laps_possible,
+    max_speed_kmh: lap.max_speed_kmh,
+    min_speed_kmh: lap.min_speed_kmh,
+    max_g_force: lap.max_g_force,
+    avg_gas_percent: lap.avg_gas_percent,
+    avg_brake_percent: lap.avg_brake_percent,
+    max_rpm: lap.max_rpm,
+    avg_tyre_core_C: lap.avg_tyre_core_C,
+    avg_tyre_wear: lap.avg_tyre_wear,
+    avg_brake_temp_C: lap.avg_brake_temp_C,
+    tyre_age_laps: lap.tyre_age_laps,
+    remaining_laps: lap.remaining_laps,
+    max_slip_by_tyre: lap.max_slip_by_tyre,
+    max_slip_by_sector: lap.max_slip_by_sector,
+    slip_events_by_sector: lap.slip_events_by_sector,
+  })))
+}
+
 function App() {
   const [view, setView] = useState('login')
   const [status, setStatus] = useState('Pronto')
@@ -32,10 +58,12 @@ function App() {
   const [sessions, setSessions] = useState([])
   const [selectedSession, setSelectedSession] = useState(null)
   const [laps, setLaps] = useState([])
+  const [liveState, setLiveState] = useState(null)
   const [isLive, setIsLive] = useState(false)
   const [aiInsight, setAiInsight] = useState(null)
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState('')
+  const liveStateUnsupportedRef = useRef(false)
 
   const loadSessions = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setStatus('Carico sessioni')
@@ -58,8 +86,25 @@ function App() {
     return data.laps || []
   }, [apiUrl, userId])
 
+  const loadLiveState = useCallback(async (session) => {
+    if (!session?.session_id || liveStateUnsupportedRef.current) return null
+
+    try {
+      const data = await api({
+        action: 'get_live_state',
+        user_id: userId,
+        session_id: session.session_id,
+      }, apiUrl)
+      return data.live_state || null
+    } catch {
+      liveStateUnsupportedRef.current = true
+      return null
+    }
+  }, [apiUrl, userId])
+
   async function openHistory() {
     setIsLive(false)
+    setLiveState(null)
     setView('sessions')
     await loadSessions()
   }
@@ -77,6 +122,7 @@ function App() {
     setAiInsight(readStoredAiInsight(latest))
     const liveLaps = await loadLaps(latest)
     setLaps(liveLaps)
+    setLiveState(await loadLiveState(latest))
     setStatus(`Live avviata - ${liveLaps.length} giri`)
     setView('dashboard')
   }
@@ -84,6 +130,7 @@ function App() {
   async function openSession(session) {
     setIsLive(false)
     setSelectedSession(session)
+    setLiveState(null)
     setAiError('')
     setAiInsight(readStoredAiInsight(session))
     setLaps(await loadLaps(session))
@@ -140,12 +187,15 @@ function App() {
 
         if (latestSession.session_id !== selectedSession.session_id) {
           setSelectedSession(latestSession)
+          setLiveState(null)
           setAiError('')
           setAiInsight(readStoredAiInsight(latestSession))
         }
 
         const updatedLaps = await loadLaps(latestSession)
-        setLaps(updatedLaps)
+        setLaps((currentLaps) => (
+          lapsDataKey(currentLaps) === lapsDataKey(updatedLaps) ? currentLaps : updatedLaps
+        ))
         setStatus(`Live aggiornata - ${updatedLaps.length} giri`)
       } catch (error) {
         setStatus(`Live non aggiornata: ${error.message}`)
@@ -154,6 +204,20 @@ function App() {
 
     return () => window.clearInterval(timer)
   }, [isLive, loadLaps, loadSessions, selectedSession, view])
+
+  useEffect(() => {
+    if (!isLive || view !== 'dashboard' || !selectedSession) return undefined
+
+    const timer = window.setInterval(async () => {
+      try {
+        setLiveState(await loadLiveState(selectedSession))
+      } catch {
+        setLiveState(null)
+      }
+    }, 1000)
+
+    return () => window.clearInterval(timer)
+  }, [isLive, loadLiveState, selectedSession, view])
 
   const loadConfig = useCallback(async () => {
     try {
@@ -202,6 +266,7 @@ function App() {
           aiInsight={aiInsight}
           aiLoading={aiLoading}
           laps={laps}
+          liveState={liveState}
           onAskAi={askAiEngineer}
           session={selectedSession}
           onBack={() => setView('menu')}

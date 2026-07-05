@@ -8,6 +8,8 @@ from awsiot import mqtt_connection_builder
 from cognito_auth import login_cognito_user
 
 SLIP_THRESHOLD = 4.0 # soglia slip
+LIVE_PUBLISH_INTERVAL_SECONDS = 1.0
+TELEMETRY_TOPIC = "AccTelemetryEdge/telemetry/laps"
 IOT_ENDPOINT = "a2r71e9visju80-ats.iot.eu-south-1.amazonaws.com"
 FRONTEND_API_URL = "https://iu9g1sfq9j.execute-api.eu-south-1.amazonaws.com/"
 
@@ -64,6 +66,77 @@ def setup_mqtt_connection():
     return mqtt_connection
 
 
+def delta_from_reference(value, reference):
+    if value is None or reference is None:
+        return None
+    if value <= 0 or reference <= 0:
+        return None
+    return int(value - reference)
+
+
+def clean_ms(value):
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number > 0 else None
+
+
+def sector_time_from_split(sector_index, raw_time_ms, sector_times, lap_time_ms=None):
+    raw_time_ms = clean_ms(raw_time_ms)
+    if raw_time_ms is None:
+        return None
+
+    if sector_index == 0:
+        return raw_time_ms
+
+    sector_one = clean_ms(sector_times[0])
+    if sector_index == 1:
+        if sector_one is not None and raw_time_ms > sector_one:
+            return raw_time_ms - sector_one
+        return raw_time_ms
+
+    sector_two = clean_ms(sector_times[1])
+    lap_time_ms = clean_ms(lap_time_ms)
+    if lap_time_ms is not None and sector_one is not None and sector_two is not None:
+        sector_three = lap_time_ms - sector_one - sector_two
+        return sector_three if sector_three > 0 else None
+
+    if sector_one is not None and sector_two is not None and raw_time_ms > sector_one + sector_two:
+        return raw_time_ms - sector_one - sector_two
+    return raw_time_ms
+
+
+def update_live_sector_result(
+    live_sector_results,
+    sector_index,
+    lap_number,
+    sector_time_ms,
+    previous_lap_sector_times,
+    best_lap_sector_times,
+):
+    if sector_time_ms is None or sector_time_ms <= 0:
+        return False
+
+    sector_key = str(sector_index + 1)
+    live_sector_results[sector_key] = {
+        "sector": sector_index + 1,
+        "lap_number": lap_number,
+        "time_ms": int(sector_time_ms),
+        "previous_lap_time_ms": previous_lap_sector_times[sector_index],
+        "best_lap_time_ms": best_lap_sector_times[sector_index],
+        "delta_previous_ms": delta_from_reference(
+            sector_time_ms,
+            previous_lap_sector_times[sector_index],
+        ),
+        "delta_best_ms": delta_from_reference(
+            sector_time_ms,
+            best_lap_sector_times[sector_index],
+        ),
+    }
+    return True
+
+
 
 def start_local_test():
     user_id = login_cognito_user()
@@ -78,6 +151,11 @@ def start_local_test():
     last_session_signature = None
     session_id = None
     session_started_at = None
+    last_live_publish_at = 0.0
+    previous_lap_sector_times = [None, None, None]
+    best_lap_sector_times = [None, None, None]
+    best_lap_time_ms = None
+    live_sector_results = {"1": None, "2": None, "3": None}
 
  # -- INIZIALIZZAZIONE DATI GIRO   
     current_lap_data = { 
@@ -90,6 +168,7 @@ def start_local_test():
         "temps_tyre_middle": {"fl": [], "fr": [], "rl": [], "rr": []},
         "temps_tyre_outer": {"fl": [], "fr": [], "rl": [], "rr": []},
         "temps_brake": {"fl": [], "fr": [], "rl": [], "rr": []},
+        "tyre_wear": {"fl": [], "fr": [], "rl": [], "rr": []},
         "tyre_core": {"fl": [], "fr": [], "rl": [], "rr": []},
         "gas_percent": [], 
         "brake_percent": [],
@@ -156,6 +235,11 @@ def start_local_test():
                 last_session_signature = session_signature
                 if lap_counter_reset:
                     last_completed_lap = 0
+                last_live_publish_at = 0.0
+                previous_lap_sector_times = [None, None, None]
+                best_lap_sector_times = [None, None, None]
+                best_lap_time_ms = None
+                live_sector_results = {"1": None, "2": None, "3": None}
 
             # -- casistica di pit -> reset eta gomme
             in_pit = graphics.is_in_pit if hasattr(graphics, 'is_in_pit') else False
@@ -173,10 +257,32 @@ def start_local_test():
 
 #--- AGGIORNAMENTO SETTORI IN TEMPO REALE ---
             current_sector = graphics.current_sector_index
+            sector_changed = False
             if current_sector != current_lap_data["last_sector"]: # leggo dati ogni 50ms, cosi vedo se dall'ultima lettura ho avuto un cambio settore 
                 prev_sector = current_lap_data["last_sector"] # salvo quel settore come precedente 
                 if 0 <= prev_sector <= 2:
-                    current_lap_data["sector_times"][prev_sector] = graphics.last_sector_time # salvo il tempo di quel settore 
+                    sector_time_ms = sector_time_from_split(
+                        prev_sector,
+                        graphics.last_sector_time,
+                        current_lap_data["sector_times"],
+                        graphics.last_time,
+                    )
+                    current_lap_data["sector_times"][prev_sector] = sector_time_ms # salvo il tempo di quel settore
+
+                    if sector_time_ms is not None and sector_time_ms > 0:
+                        sector_lap_number = (
+                            graphics.completed_lap
+                            if prev_sector == 2 and current_sector == 0 and graphics.completed_lap > 0
+                            else graphics.completed_lap + 1
+                        )
+                        sector_changed = update_live_sector_result(
+                            live_sector_results,
+                            prev_sector,
+                            sector_lap_number,
+                            sector_time_ms,
+                            previous_lap_sector_times,
+                            best_lap_sector_times,
+                        )
                 current_lap_data["last_sector"] = current_sector # aggiorno il settore 
 #-------- SEZIONE DI REGISTRAZIONE REAL TIME PARAMETRI ------------------
 
@@ -227,6 +333,12 @@ def start_local_test():
             current_lap_data["temps_tyre_outer"]["fr"].append(physics.tyre_temp_outer.front_right)
             current_lap_data["temps_tyre_outer"]["rl"].append(physics.tyre_temp_outer.rear_left)
             current_lap_data["temps_tyre_outer"]["rr"].append(physics.tyre_temp_outer.rear_right)
+
+#------------ TYRE WEAR: dato esposto dalla shared memory, se ACC lo valorizza --
+            current_lap_data["tyre_wear"]["fl"].append(physics.tyre_wear.front_left)
+            current_lap_data["tyre_wear"]["fr"].append(physics.tyre_wear.front_right)
+            current_lap_data["tyre_wear"]["rl"].append(physics.tyre_wear.rear_left)
+            current_lap_data["tyre_wear"]["rr"].append(physics.tyre_wear.rear_right)
 #------------ TEMPS BRAKE: ogni 50ms --
 
             current_lap_data["temps_brake"]["fl"].append(physics.brake_temp.front_left)
@@ -289,6 +401,48 @@ def start_local_test():
             ) 
             print(f"\r{live_status:<120}", end='', flush=True)
 
+#-------------- PAYLOAD LIVE: gap e settori a 1 Hz
+            live_now = time.time()
+            should_publish_live = (
+                session_id is not None
+                and (
+                    sector_changed
+                    or live_now - last_live_publish_at >= LIVE_PUBLISH_INTERVAL_SECONDS
+                )
+            )
+
+            if should_publish_live:
+                live_payload = {
+                    "action": "live_update",
+                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "user_id": user_id,
+                    "session_id": session_id,
+                    "session_started_at": session_started_at,
+                    "session_index": session_index,
+                    "track": static.track,
+                    "driver": static.player_name,
+                    "session_type": session_type,
+                    "lap_number": graphics.completed_lap,
+                    "current_lap_number": graphics.completed_lap + 1,
+                    "current_sector": current_sector + 1 if 0 <= current_sector <= 2 else None,
+                    "position": position,
+                    "gap_ahead_ms": gap_ahead,
+                    "gap_behind_ms": gap_behind,
+                    "sector_times_ms": current_lap_data["sector_times"],
+                    "sector_results": live_sector_results,
+                }
+
+                try:
+                    mqtt_conn.publish(
+                        topic=TELEMETRY_TOPIC,
+                        payload=json.dumps(live_payload),
+                        qos=mqtt.QoS.AT_LEAST_ONCE
+                    )
+                except Exception as e:
+                    print(f"\n-> Errore invio live update: {e}\n")
+                finally:
+                    last_live_publish_at = live_now
+
 #-------------- TRIGGER FINE GIRO 
             if graphics.completed_lap > last_completed_lap and graphics.completed_lap != -1:
                 print(f"\n\n[!] GIRO {graphics.completed_lap} COMPLETATO! Elaborazione...")
@@ -299,6 +453,22 @@ def start_local_test():
                 track_length_km = track_length_m / 1000.0 if track_length_m > 0 else 1.0
                 remaining_laps = max(num_laps - graphics.completed_lap, 0) if num_laps > 0 else None
                 track_grip_status = getattr(graphics, "track_grip_status", None)
+                sector_three_time = sector_time_from_split(
+                    2,
+                    graphics.last_time,
+                    current_lap_data["sector_times"],
+                    graphics.last_time,
+                )
+                if sector_three_time is not None:
+                    current_lap_data["sector_times"][2] = sector_three_time
+                    update_live_sector_result(
+                        live_sector_results,
+                        2,
+                        graphics.completed_lap,
+                        sector_three_time,
+                        previous_lap_sector_times,
+                        best_lap_sector_times,
+                    )
 
 #----------------CALCOLO AVG 
                 avg_core = {k: round(sum(v)/len(v), 2) for k, v in current_lap_data["temps_core"].items() if v}
@@ -306,6 +476,13 @@ def start_local_test():
                 avg_tyre_middle = {k: round(sum(v)/len(v), 2) for k, v in current_lap_data["temps_tyre_middle"].items() if v}
                 avg_tyre_outer = {k: round(sum(v)/len(v), 2) for k, v in current_lap_data["temps_tyre_outer"].items() if v}
                 avg_brake = {k: round(sum(v)/len(v), 2) for k, v in current_lap_data["temps_brake"].items() if v}
+                avg_tyre_wear = {}
+                tyre_wear_available = False
+                for tyre, values in current_lap_data["tyre_wear"].items():
+                    valid_values = [value for value in values if value > 0]
+                    if valid_values:
+                        tyre_wear_available = True
+                        avg_tyre_wear[tyre] = round(sum(valid_values) / len(valid_values), 2)
                 avg_gas = sum(current_lap_data["gas_percent"]) / len(current_lap_data["gas_percent"]) if current_lap_data["gas_percent"] else 0
                 avg_brake_pedal = sum(current_lap_data["brake_percent"]) / len(current_lap_data["brake_percent"]) if current_lap_data["brake_percent"] else 0
                 max_rpm = max(current_lap_data["rpm"]) if current_lap_data["rpm"] else 0
@@ -313,6 +490,7 @@ def start_local_test():
 
                 # COSTRUZIONE DEL PAYLOAD
                 payload = {
+                    "record_type": "lap",
                     "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     "user_id": user_id,
                     "session_id": session_id,
@@ -341,6 +519,8 @@ def start_local_test():
                     "avg_tyre_inner_C": avg_tyre_inner,
                     "avg_tyre_middle_C": avg_tyre_middle,
                     "avg_tyre_outer_C": avg_tyre_outer,
+                    "avg_tyre_wear": avg_tyre_wear,
+                    "tyre_wear_available": tyre_wear_available,
                     "avg_brake_temp_C": avg_brake,
                     "slip_events_by_sector": current_lap_data["slip_events_by_sector"],
                     "max_slip_by_sector": {
@@ -365,11 +545,9 @@ def start_local_test():
                     "fuel_left_L": round(physics.fuel, 3)
                 }
 
-                topic = "AccTelemetryEdge/telemetry/laps" 
-                
                 try:
                     mqtt_conn.publish(
-                        topic=topic,
+                        topic=TELEMETRY_TOPIC,
                         payload=json.dumps(payload),
                         qos=mqtt.QoS.AT_LEAST_ONCE
                     )
@@ -379,6 +557,42 @@ def start_local_test():
                 except Exception as e:
                     print(f"-> Errore critico invio MQTT: {e}\n")
 
+                try:
+                    mqtt_conn.publish(
+                        topic=TELEMETRY_TOPIC,
+                        payload=json.dumps({
+                            "action": "live_update",
+                            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            "user_id": user_id,
+                            "session_id": session_id,
+                            "session_started_at": session_started_at,
+                            "session_index": session_index,
+                            "track": static.track,
+                            "driver": static.player_name,
+                            "session_type": session_type,
+                            "lap_number": graphics.completed_lap,
+                            "current_lap_number": graphics.completed_lap + 1,
+                            "current_sector": current_sector + 1 if 0 <= current_sector <= 2 else None,
+                            "position": position,
+                            "gap_ahead_ms": gap_ahead,
+                            "gap_behind_ms": gap_behind,
+                            "sector_times_ms": current_lap_data["sector_times"],
+                            "sector_results": live_sector_results,
+                        }),
+                        qos=mqtt.QoS.AT_LEAST_ONCE
+                    )
+                    last_live_publish_at = time.time()
+                except Exception as e:
+                    print(f"-> Errore invio live update fine giro: {e}\n")
+
+                completed_sector_times = current_lap_data["sector_times"][:]
+                previous_lap_sector_times = completed_sector_times
+                if is_valid_lap and graphics.last_time > 0 and (
+                    best_lap_time_ms is None or graphics.last_time < best_lap_time_ms
+                ):
+                    best_lap_time_ms = graphics.last_time
+                    best_lap_sector_times = completed_sector_times[:]
+
                 current_lap_data = {
                     "fuel_start": physics.fuel, 
                     "max_g_force": 0, "max_speed": 0, "min_speed": 999,
@@ -387,6 +601,7 @@ def start_local_test():
                     "temps_tyre_middle": {"fl": [], "fr": [], "rl": [], "rr": []},
                     "temps_tyre_outer": {"fl": [], "fr": [], "rl": [], "rr": []},
                     "temps_brake": {"fl": [], "fr": [], "rl": [], "rr": []},
+                    "tyre_wear": {"fl": [], "fr": [], "rl": [], "rr": []},
                     "gas_percent": [], "brake_percent": [], "rpm": [],
                     "best_time": current_lap_data["best_time"],
                     "sector_times": [0, 0, 0],

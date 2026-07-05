@@ -77,6 +77,10 @@ def _lap_number(lap):
     except (TypeError, ValueError):
         return -1
 
+
+def _is_lap_record(item):
+    return item.get("record_type") in (None, "", "lap")
+
 # -- ACQUISIZIONE GIRI SEZIONE
 
 def _latest_lap_sequence(laps):
@@ -119,6 +123,7 @@ def get_recent_laps(user_id=None, driver=None, track=None, session_id=None, limi
             response = table.query(**query_args)  
 
             page_laps = response.get("Items", []) # prende i giri 
+            page_laps = [lap for lap in page_laps if _is_lap_record(lap)]
             if session_id:
                 page_laps = [lap for lap in page_laps if lap.get("session_id") == session_id]
             if track:
@@ -171,8 +176,66 @@ def health_check():
     })
 
 
+def _live_state_key(user_id):
+    return {
+        "driver": f"LIVE#{user_id or DEFAULT_USER_ID}",
+        "timestamp": "current",
+    }
+
+
+def save_live_state(payload):
+    user_id = payload.get("user_id") or DEFAULT_USER_ID
+    key = _live_state_key(user_id)
+    state = dict(payload)
+    state.pop("action", None)
+    state.pop("user_id", None)
+
+    state["record_type"] = "live_state"
+    state["live_user_id"] = user_id
+    state["live_updated_at"] = state.get("timestamp")
+    state["driver_name"] = _clean_text(state.get("driver"))
+    state["track"] = _clean_text(state.get("track"))
+    state["driver"] = key["driver"]
+    state["timestamp"] = key["timestamp"]
+
+    try:
+        table.put_item(Item=_to_dynamo_value(state))
+    except ClientError as error:
+        print("Errore scrittura live state:", error.response["Error"]["Message"])
+        return _response(500, {"message": "Errore durante il salvataggio dello stato live."})
+
+    return _response(200, {"message": "Stato live aggiornato."})
+
+
+def get_live_state(payload):
+    user_id = payload.get("user_id") or DEFAULT_USER_ID
+    session_id = payload.get("session_id")
+
+    try:
+        response = table.get_item(Key=_live_state_key(user_id))
+    except ClientError as error:
+        print("Live state non disponibile:", error.response["Error"]["Message"])
+        return _response(500, {"message": "Errore durante la lettura dello stato live."})
+
+    state = response.get("Item")
+    if not state:
+        return _response(200, {"live_state": None})
+
+    state = _to_json_value(state)
+    state.pop("driver", None)
+    state.pop("timestamp", None)
+    state.pop("record_type", None)
+    state.pop("live_user_id", None)
+
+    if session_id and state.get("session_id") != session_id:
+        return _response(200, {"live_state": None})
+
+    return _response(200, {"live_state": state})
+
+
 def save_lap(payload):
     lap = dict(payload)
+    lap["record_type"] = "lap"
     lap["user_id"] = lap.get("user_id") or DEFAULT_USER_ID
     lap["driver"] = _clean_text(lap.get("driver"))
     lap["track"] = _clean_text(lap.get("track"))
@@ -292,6 +355,8 @@ def compact_lap(lap):
         "avg_tyre_inner_C": lap.get("avg_tyre_inner_C"),
         "avg_tyre_middle_C": lap.get("avg_tyre_middle_C"),
         "avg_tyre_outer_C": lap.get("avg_tyre_outer_C"),
+        "avg_tyre_wear": lap.get("avg_tyre_wear"),
+        "tyre_wear_available": lap.get("tyre_wear_available"),
         "avg_brake_temp_C": lap.get("avg_brake_temp_C"),
         "mfd_tyre_pressure": lap.get("mfd_tyre_pressure"),
         "slip_events_by_sector": lap.get("slip_events_by_sector"),
@@ -431,6 +496,10 @@ def handler(event, context):
 
     if payload.get("action") == "health_check":
         return health_check()
+    if payload.get("action") == "live_update":
+        return save_live_state(payload)
+    if payload.get("action") == "get_live_state":
+        return get_live_state(payload)
     if payload.get("action") == "list_sessions":
         return list_sessions(payload)
     if payload.get("action") == "get_session_laps":

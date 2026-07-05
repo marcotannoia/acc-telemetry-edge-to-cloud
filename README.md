@@ -12,6 +12,7 @@ La web app trasforma i dati live di ACC in una vista leggibile e utile per prend
 - invia i dati giro per giro al cloud;
 - salva lo storico delle sessioni;
 - mostra una dashboard live aggiornata;
+- aggiorna gap e settori live a 1 Hz senza salvare ogni tick nello storico;
 - permette di consultare sessioni passate;
 - calcola indicatori utili per gomme, carburante, grip e ritmo;
 - puo' generare un consiglio strategico tramite AI, se configurata.
@@ -31,11 +32,13 @@ Durante una sessione, la dashboard mostra i dati aggiornati degli ultimi giri:
 - validita' del giro;
 - velocita' massima e minima;
 - temperatura gomme;
+- stato/usura gomme, quando il dato tyre wear e' valorizzato da ACC;
 - temperatura freni;
 - pressione gomme MFD;
 - consumo carburante;
 - giri stimati rimanenti;
-- posizione e gap;
+- posizione e gap live;
+- tempi settore live con delta rispetto a giro precedente e giro migliore;
 - eventi di slip per settore.
 
 ### Storico Sessioni
@@ -102,6 +105,7 @@ Esempi:
 - fuel start, fuel left e fuel consumed;
 - tyre core temperature;
 - tyre inner/middle/outer temperature;
+- tyre wear, se disponibile nella shared memory;
 - brake temperature;
 - MFD tyre pressure;
 - slip per gomma e per settore;

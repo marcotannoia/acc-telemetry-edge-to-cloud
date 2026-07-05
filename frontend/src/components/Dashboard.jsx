@@ -53,9 +53,51 @@ function numberOrNull(value) {
   return Number.isFinite(number) ? number : null
 }
 
+function positiveNumberOrNull(value) {
+  const number = numberOrNull(value)
+  return number !== null && number > 0 ? number : null
+}
+
 function secondsFromMs(value) {
   const number = numberOrNull(value)
   return number !== null && number > 0 ? number / 1000 : null
+}
+
+function gapSecondsFromMs(value) {
+  const number = numberOrNull(value)
+  if (number === null || number === 0 || Math.abs(number) >= 2147483647) return null
+  return Math.abs(number) / 1000
+}
+
+function formatGap(value) {
+  const seconds = gapSecondsFromMs(value)
+  return seconds === null ? '-' : seconds.toFixed(3)
+}
+
+function raceGapAhead(value, position) {
+  const racePosition = numberOrNull(position)
+  if (racePosition !== null && racePosition <= 1) return null
+  return value
+}
+
+function formatSectorTime(value) {
+  const seconds = secondsFromMs(value)
+  return seconds === null ? '-' : `${seconds.toFixed(3)} s`
+}
+
+function formatSignedDeltaMs(value) {
+  const number = numberOrNull(value)
+  if (number === null) return '-'
+  const seconds = Math.abs(number) / 1000
+  if (number > 0) return `+${seconds.toFixed(3)} s`
+  if (number < 0) return `-${seconds.toFixed(3)} s`
+  return '0.000 s'
+}
+
+function deltaTone(value) {
+  const number = numberOrNull(value)
+  if (number === null || number === 0) return ''
+  return number < 0 ? 'good' : 'bad'
 }
 
 function lapSecondsFromMs(value) {
@@ -115,8 +157,8 @@ function percentFromRatio(value) { // perche gli avg di brake e gas non sono %
   return number === null ? null : number * 100
 }
 
-function averageWheelMap(lap, field) {
-  const values = wheels.map((wheel) => numberOrNull(lap?.[field]?.[wheel])).filter((value) => value !== null)
+function averageWheelMap(lap, field, transform = numberOrNull) {
+  const values = wheels.map((wheel) => transform(lap?.[field]?.[wheel])).filter((value) => value !== null)
   return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null
 }
 
@@ -168,12 +210,12 @@ function scalarDataset(laps, field, label, color, transform = numberOrNull) {
   }
 }
 
-function wheelDatasets(laps, field, labelPrefix) {
+function wheelDatasets(laps, field, labelPrefix, transform = numberOrNull) {
   return wheels.map((wheel) => ({
     label: `${labelPrefix} ${wheelNames[wheel]}`,
     borderColor: wheelColors[wheel],
     backgroundColor: `${wheelColors[wheel]}22`,
-    data: laps.map((lap) => numberOrNull(lap?.[field]?.[wheel])),
+    data: laps.map((lap) => transform(lap?.[field]?.[wheel])),
   }))
 }
 
@@ -259,6 +301,7 @@ function Dashboard({
   aiLoading,
   isLive,
   laps,
+  liveState,
   onAskAi,
   onBack,
   session,
@@ -272,8 +315,14 @@ function Dashboard({
     .sort((a, b) => a - b)[0]
 
   const tyreCore = averageWheelMap(lastLap, 'avg_tyre_core_C')
+  const tyreWear = averageWheelMap(lastLap, 'avg_tyre_wear', positiveNumberOrNull)
   const brakeTemp = averageWheelMap(lastLap, 'avg_brake_temp_C')
   const delta = lapDelta(laps)
+  const liveGapAhead = liveState?.gap_ahead_ms ?? lastLap.gap_ahead_ms
+  const liveGapBehind = liveState?.gap_behind_ms ?? lastLap.gap_behind_ms
+  const livePosition = liveState?.position ?? lastLap.position
+  const racePosition = numberOrNull(livePosition)
+  const sectorResults = liveState?.sector_results || {}
 
   const chartSections = useMemo(() => {
     const sections = [
@@ -341,6 +390,10 @@ function Dashboard({
             datasets: wheelDatasets(laps, 'avg_tyre_core_C', 'Core'),
           },
           {
+            title: 'Stato gomme',
+            datasets: wheelDatasets(laps, 'avg_tyre_wear', 'Usura', positiveNumberOrNull),
+          },
+          {
             title: 'Temperature freni',
             datasets: wheelDatasets(laps, 'avg_brake_temp_C', 'Freno'),
           },
@@ -395,8 +448,21 @@ function Dashboard({
       <div className="metric-sections">
         <MetricSection title="Sessione">
           <Metric label="Giro" value={formatLapProgress(lastLap)} />
-          <Metric label="Posizione" value={lastLap.position || '-'} />
+          <Metric label="Posizione" value={livePosition || '-'} />
         </MetricSection>
+
+        <MetricSection title="Distanze">
+          <Metric label="Gap ahead" value={formatGap(raceGapAhead(liveGapAhead, racePosition))} />
+          <Metric label="Gap behind" value={formatGap(liveGapBehind)} />
+        </MetricSection>
+
+        {isLive && (
+          <MetricSection title="Settori">
+            {sectors.map((sector) => (
+              <SectorMetric key={sector} result={sectorResults[sector]} sector={sector} />
+            ))}
+          </MetricSection>
+        )}
 
         <MetricSection title="Ambiente">
           <Metric label="Aria" value={metricNumber(lastLap.air_temp_C, ' C')} />
@@ -405,6 +471,7 @@ function Dashboard({
 
         <MetricSection title="Gomme">
           <Metric label="Temp gomme" value={tyreCore === null ? '-' : `${tyreCore.toFixed(1)} C`} />
+          <Metric label="Usura gomme" value={tyreWear === null ? 'N/D' : `${tyreWear.toFixed(1)} %`} />
           <Metric label="Stint gomme" value={metricNumber(lastLap.tyre_age_laps, '', 0)} />
           <Metric label="Temp freni" value={brakeTemp === null ? '-' : `${brakeTemp.toFixed(0)} C`} />
         </MetricSection>
@@ -496,6 +563,23 @@ function Metric({ label, tone, value }) {
   )
 }
 
+function SectorMetric({ result, sector }) {
+  return (
+    <article className="metric sector-metric">
+      <span>{result?.lap_number ? `S${sector} G${result.lap_number}` : `S${sector}`}</span>
+      <strong>{formatSectorTime(result?.time_ms)}</strong>
+      <div className="metric-deltas">
+        <small className={`metric-delta metric-delta-${deltaTone(result?.delta_previous_ms)}`}>
+          Prec {formatSignedDeltaMs(result?.delta_previous_ms)}
+        </small>
+        <small className={`metric-delta metric-delta-${deltaTone(result?.delta_best_ms)}`}>
+          Best {formatSignedDeltaMs(result?.delta_best_ms)}
+        </small>
+      </div>
+    </article>
+  )
+}
+
 function ChartSection({ labels, onExpand, section }) {
   return (
     <section className="chart-section">
@@ -525,28 +609,40 @@ function ChartPanel({ group, labels, onExpand }) {
 
 function LineChart({ datasets, labels, reverseY = false }) {
   const canvasRef = useRef(null)
+  const chartRef = useRef(null)
 
   useEffect(() => {
-    if (!canvasRef.current) return undefined
+    if (!canvasRef.current || chartRef.current) return undefined
 
-    const chart = new Chart(canvasRef.current, {
+    chartRef.current = new Chart(canvasRef.current, {
       type: 'line',
       data: {
-        labels,
-        datasets: datasets.map((dataset) => ({
-          ...dataset,
-          borderWidth: 2,
-          fill: false,
-          pointRadius: 2,
-          spanGaps: true,
-          tension: 0.35,
-        })),
+        labels: [],
+        datasets: [],
       },
       options: chartOptions(reverseY),
     })
 
-    return () => chart.destroy()
-  }, [datasets, labels, reverseY])
+    return () => {
+      chartRef.current?.destroy()
+      chartRef.current = null
+    }
+  }, [reverseY])
+
+  useEffect(() => {
+    if (!chartRef.current) return
+
+    chartRef.current.data.labels = labels
+    chartRef.current.data.datasets = datasets.map((dataset) => ({
+      ...dataset,
+      borderWidth: 2,
+      fill: false,
+      pointRadius: 2,
+      spanGaps: true,
+      tension: 0.35,
+    }))
+    chartRef.current.update('none')
+  }, [datasets, labels])
 
   return <canvas ref={canvasRef}></canvas>
 }
@@ -597,6 +693,7 @@ function AiInsight({ insight }) {
 function chartOptions(reverseY) {
   return {
     responsive: true,
+    animation: false,
     maintainAspectRatio: false,
     plugins: {
       legend: { labels: { color: '#fff', boxWidth: 14 } },
