@@ -355,8 +355,6 @@ def compact_lap(lap):
         "avg_tyre_inner_C": lap.get("avg_tyre_inner_C"),
         "avg_tyre_middle_C": lap.get("avg_tyre_middle_C"),
         "avg_tyre_outer_C": lap.get("avg_tyre_outer_C"),
-        "avg_tyre_wear": lap.get("avg_tyre_wear"),
-        "tyre_wear_available": lap.get("tyre_wear_available"),
         "avg_brake_temp_C": lap.get("avg_brake_temp_C"),
         "mfd_tyre_pressure": lap.get("mfd_tyre_pressure"),
         "slip_events_by_sector": lap.get("slip_events_by_sector"),

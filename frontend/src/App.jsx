@@ -38,7 +38,6 @@ function lapsDataKey(laps) {
     avg_brake_percent: lap.avg_brake_percent,
     max_rpm: lap.max_rpm,
     avg_tyre_core_C: lap.avg_tyre_core_C,
-    avg_tyre_wear: lap.avg_tyre_wear,
     avg_brake_temp_C: lap.avg_brake_temp_C,
     tyre_age_laps: lap.tyre_age_laps,
     remaining_laps: lap.remaining_laps,

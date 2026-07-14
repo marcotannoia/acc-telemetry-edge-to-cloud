@@ -315,7 +315,6 @@ function Dashboard({
     .sort((a, b) => a - b)[0]
 
   const tyreCore = averageWheelMap(lastLap, 'avg_tyre_core_C')
-  const tyreWear = averageWheelMap(lastLap, 'avg_tyre_wear', positiveNumberOrNull)
   const brakeTemp = averageWheelMap(lastLap, 'avg_brake_temp_C')
   const delta = lapDelta(laps)
   const liveGapAhead = liveState?.gap_ahead_ms ?? lastLap.gap_ahead_ms
@@ -388,10 +387,6 @@ function Dashboard({
           {
             title: 'Temperatura gomme',
             datasets: wheelDatasets(laps, 'avg_tyre_core_C', 'Core'),
-          },
-          {
-            title: 'Stato gomme',
-            datasets: wheelDatasets(laps, 'avg_tyre_wear', 'Usura', positiveNumberOrNull),
           },
           {
             title: 'Temperature freni',
@@ -471,7 +466,6 @@ function Dashboard({
 
         <MetricSection title="Gomme">
           <Metric label="Temp gomme" value={tyreCore === null ? '-' : `${tyreCore.toFixed(1)} C`} />
-          <Metric label="Usura gomme" value={tyreWear === null ? 'N/D' : `${tyreWear.toFixed(1)} %`} />
           <Metric label="Stint gomme" value={metricNumber(lastLap.tyre_age_laps, '', 0)} />
           <Metric label="Temp freni" value={brakeTemp === null ? '-' : `${brakeTemp.toFixed(0)} C`} />
         </MetricSection>

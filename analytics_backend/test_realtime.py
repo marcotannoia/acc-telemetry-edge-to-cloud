@@ -168,7 +168,6 @@ def start_local_test():
         "temps_tyre_middle": {"fl": [], "fr": [], "rl": [], "rr": []},
         "temps_tyre_outer": {"fl": [], "fr": [], "rl": [], "rr": []},
         "temps_brake": {"fl": [], "fr": [], "rl": [], "rr": []},
-        "tyre_wear": {"fl": [], "fr": [], "rl": [], "rr": []},
         "tyre_core": {"fl": [], "fr": [], "rl": [], "rr": []},
         "gas_percent": [], 
         "brake_percent": [],
@@ -334,11 +333,6 @@ def start_local_test():
             current_lap_data["temps_tyre_outer"]["rl"].append(physics.tyre_temp_outer.rear_left)
             current_lap_data["temps_tyre_outer"]["rr"].append(physics.tyre_temp_outer.rear_right)
 
-#------------ TYRE WEAR: dato esposto dalla shared memory, se ACC lo valorizza --
-            current_lap_data["tyre_wear"]["fl"].append(physics.tyre_wear.front_left)
-            current_lap_data["tyre_wear"]["fr"].append(physics.tyre_wear.front_right)
-            current_lap_data["tyre_wear"]["rl"].append(physics.tyre_wear.rear_left)
-            current_lap_data["tyre_wear"]["rr"].append(physics.tyre_wear.rear_right)
 #------------ TEMPS BRAKE: ogni 50ms --
 
             current_lap_data["temps_brake"]["fl"].append(physics.brake_temp.front_left)
@@ -476,13 +470,6 @@ def start_local_test():
                 avg_tyre_middle = {k: round(sum(v)/len(v), 2) for k, v in current_lap_data["temps_tyre_middle"].items() if v}
                 avg_tyre_outer = {k: round(sum(v)/len(v), 2) for k, v in current_lap_data["temps_tyre_outer"].items() if v}
                 avg_brake = {k: round(sum(v)/len(v), 2) for k, v in current_lap_data["temps_brake"].items() if v}
-                avg_tyre_wear = {}
-                tyre_wear_available = False
-                for tyre, values in current_lap_data["tyre_wear"].items():
-                    valid_values = [value for value in values if value > 0]
-                    if valid_values:
-                        tyre_wear_available = True
-                        avg_tyre_wear[tyre] = round(sum(valid_values) / len(valid_values), 2)
                 avg_gas = sum(current_lap_data["gas_percent"]) / len(current_lap_data["gas_percent"]) if current_lap_data["gas_percent"] else 0
                 avg_brake_pedal = sum(current_lap_data["brake_percent"]) / len(current_lap_data["brake_percent"]) if current_lap_data["brake_percent"] else 0
                 max_rpm = max(current_lap_data["rpm"]) if current_lap_data["rpm"] else 0
@@ -519,8 +506,6 @@ def start_local_test():
                     "avg_tyre_inner_C": avg_tyre_inner,
                     "avg_tyre_middle_C": avg_tyre_middle,
                     "avg_tyre_outer_C": avg_tyre_outer,
-                    "avg_tyre_wear": avg_tyre_wear,
-                    "tyre_wear_available": tyre_wear_available,
                     "avg_brake_temp_C": avg_brake,
                     "slip_events_by_sector": current_lap_data["slip_events_by_sector"],
                     "max_slip_by_sector": {
@@ -601,7 +586,6 @@ def start_local_test():
                     "temps_tyre_middle": {"fl": [], "fr": [], "rl": [], "rr": []},
                     "temps_tyre_outer": {"fl": [], "fr": [], "rl": [], "rr": []},
                     "temps_brake": {"fl": [], "fr": [], "rl": [], "rr": []},
-                    "tyre_wear": {"fl": [], "fr": [], "rl": [], "rr": []},
                     "gas_percent": [], "brake_percent": [], "rpm": [],
                     "best_time": current_lap_data["best_time"],
                     "sector_times": [0, 0, 0],

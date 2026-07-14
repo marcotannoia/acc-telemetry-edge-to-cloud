@@ -32,7 +32,6 @@ Durante una sessione, la dashboard mostra i dati aggiornati degli ultimi giri:
 - validita' del giro;
 - velocita' massima e minima;
 - temperatura gomme;
-- stato/usura gomme, quando il dato tyre wear e' valorizzato da ACC;
 - temperatura freni;
 - pressione gomme MFD;
 - consumo carburante;
@@ -105,7 +104,6 @@ Esempi:
 - fuel start, fuel left e fuel consumed;
 - tyre core temperature;
 - tyre inner/middle/outer temperature;
-- tyre wear, se disponibile nella shared memory;
 - brake temperature;
 - MFD tyre pressure;
 - slip per gomma e per settore;
