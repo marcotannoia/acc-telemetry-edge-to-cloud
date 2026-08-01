@@ -8,5 +8,5 @@ terraform {
 }
 
 provider "aws" {
-  region = "eu-south-1" # Francoforte è ottima per la latenza dall'Italia
+  region = "eu-south-1" # Milano
 }

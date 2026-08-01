@@ -1,6 +1,19 @@
 data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
 
+locals {
+  edge_device_certificate_arn = (
+    var.existing_edge_device_certificate_arn != ""
+    ? var.existing_edge_device_certificate_arn
+    : aws_iot_certificate.edge_device[0].arn
+  )
+  provisioning_certificate_arn = (
+    var.existing_provisioning_certificate_arn != ""
+    ? var.existing_provisioning_certificate_arn
+    : aws_iot_certificate.iot_fleet_provisioning[0].arn
+  )
+}
+
 resource "aws_iot_policy" "iot_device" {
   name = join("-", [var.name, "device-policy"])
 
@@ -60,12 +73,16 @@ resource "aws_iot_policy" "provisioning" {
 
 # Create a self-signed provisioning certificate
 resource "tls_private_key" "provisioning" {
+  count = var.existing_provisioning_certificate_arn == "" ? 1 : 0
+
   algorithm = "RSA"
   rsa_bits  = 2048
 }
 
 resource "tls_self_signed_cert" "provisioning" {
-  private_key_pem = tls_private_key.provisioning.private_key_pem
+  count = var.existing_provisioning_certificate_arn == "" ? 1 : 0
+
+  private_key_pem = tls_private_key.provisioning[0].private_key_pem
 
   subject {
     common_name = "IoT Provisioning"
@@ -82,13 +99,19 @@ resource "tls_self_signed_cert" "provisioning" {
 
 # Add the provisioning certificate and attach the provisioning policy
 resource "aws_iot_certificate" "iot_fleet_provisioning" {
-  certificate_pem = tls_self_signed_cert.provisioning.cert_pem
+  count = var.existing_provisioning_certificate_arn == "" ? 1 : 0
+
+  certificate_pem = tls_self_signed_cert.provisioning[0].cert_pem
   active          = true
 }
 
 resource "aws_iot_policy_attachment" "iot_fleet_provisioning_certificate" {
   policy = aws_iot_policy.provisioning.name
-  target = aws_iot_certificate.iot_fleet_provisioning.arn
+  target = local.provisioning_certificate_arn
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 
@@ -99,6 +122,8 @@ data "aws_iot_endpoint" "core" {
 
 # Genera un certificato sicuro gestito da AWS per il tuo PC (Edge)
 resource "aws_iot_certificate" "edge_device" {
+  count = var.existing_edge_device_certificate_arn == "" ? 1 : 0
+
   active = true
 }
 
@@ -109,13 +134,13 @@ output "iot_endpoint" {
 }
 
 output "device_certificate" {
-  value       = aws_iot_certificate.edge_device.certificate_pem
+  value       = try(aws_iot_certificate.edge_device[0].certificate_pem, null)
   sensitive   = true
   description = "Salva questo output nel file device-certificate.pem.crt"
 }
 
 output "device_private_key" {
-  value       = aws_iot_certificate.edge_device.private_key
+  value       = try(aws_iot_certificate.edge_device[0].private_key, null)
   sensitive   = true
   description = "Salva questo output nel file device-private.pem.key"
 }
@@ -128,11 +153,19 @@ resource "aws_iot_thing" "edge_device" {
 # 2. Attacca la policy del dispositivo al certificato del tuo PC
 resource "aws_iot_policy_attachment" "edge_device_policy" {
   policy = aws_iot_policy.iot_device.name
-  target = aws_iot_certificate.edge_device.arn
+  target = local.edge_device_certificate_arn
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 # 3. Attacca il certificato alla Thing (Soddisfa la condizione IsAttached = true)
 resource "aws_iot_thing_principal_attachment" "edge_device_principal" {
-  principal = aws_iot_certificate.edge_device.arn
+  principal = local.edge_device_certificate_arn
   thing     = aws_iot_thing.edge_device.name
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }

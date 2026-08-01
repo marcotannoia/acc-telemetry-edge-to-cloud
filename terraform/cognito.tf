@@ -37,7 +37,6 @@ resource "aws_cognito_user_pool" "analytics_dashboard_users" {
 resource "aws_cognito_user_pool_client" "client" {
   name                                 = "analytics_dashboard_cognito_client"
   user_pool_id                         = aws_cognito_user_pool.analytics_dashboard_users.id
-  generate_secret                      = false
   allowed_oauth_flows_user_pool_client = true
   allowed_oauth_flows                  = ["code"]
   allowed_oauth_scopes                 = ["email", "openid", "profile"]

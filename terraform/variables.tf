@@ -44,3 +44,15 @@ variable "cognito_domain_prefix" {
   type        = string
   default     = "acc-telemetry-dashboard"
 }
+
+variable "existing_edge_device_certificate_arn" {
+  description = "ARN di un certificato IoT edge gia esistente da conservare. Lascia vuoto solo per crearne uno nuovo."
+  type        = string
+  default     = ""
+}
+
+variable "existing_provisioning_certificate_arn" {
+  description = "ARN di un certificato IoT di provisioning gia esistente da conservare. Lascia vuoto solo per crearne uno nuovo."
+  type        = string
+  default     = ""
+}
