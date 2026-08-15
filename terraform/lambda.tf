@@ -34,7 +34,8 @@ resource "aws_iam_role_policy" "lambda_execution_policy" {
           Effect = "Allow"
           Resource = [
             aws_dynamodb_table.analytics_dashboard_dynamo.arn,
-            "${aws_dynamodb_table.analytics_dashboard_dynamo.arn}/index/*"
+            "${aws_dynamodb_table.analytics_dashboard_dynamo.arn}/index/*",
+            aws_dynamodb_table.analytics_dashboard_access.arn
           ]
         },
         {
@@ -79,6 +80,7 @@ resource "aws_lambda_function" "analytics_dashboard_lambda" {
   environment {
     variables = {
       DYNAMO_TABLE              = aws_dynamodb_table.analytics_dashboard_dynamo.name
+      DASHBOARD_ACCESS_TABLE    = aws_dynamodb_table.analytics_dashboard_access.name
       DEFAULT_USER_ID           = var.telemetry_user_id
       OPENAI_API_KEY_SECRET_ARN = var.openai_api_key_secret_arn
       OPENAI_MODEL              = var.openai_model

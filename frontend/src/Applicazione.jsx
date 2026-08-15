@@ -4,24 +4,35 @@ import Accesso from './componenti/Accesso.jsx'
 import Dashboard from './componenti/Dashboard.jsx'
 import ListaSessioni from './componenti/ListaSessioni.jsx'
 import Menu from './componenti/Menu.jsx'
-import { chiamaApi } from './servizi/api.js'
+import { chiamaApi, urlApiPredefinito } from './servizi/api.js'
 import { leggiConfigurazioneRuntime } from './servizi/configurazioneRuntime.js'
 
 function messaggioErrore(errore) {
   return errore instanceof Error ? errore.message : 'Errore sconosciuto'
 }
 
-async function leggiSessioniDaApi(idUtente, urlApi) {
-  const dati = await chiamaApi({ action: 'list_sessions', user_id: idUtente, limit: 300 }, urlApi)
+function payloadAccesso(credenziali) {
+  return {
+    station_code: credenziali.codicePostazione,
+    access_code: credenziali.codiceAccesso,
+  }
+}
+
+async function leggiSessioniDaApi(credenziali, urlApi) {
+  const dati = await chiamaApi({
+    action: 'list_sessions',
+    ...payloadAccesso(credenziali),
+    limit: 300,
+  }, urlApi)
   return [...(dati.sessions || [])].sort((a, b) =>
     String(b.last_timestamp || '').localeCompare(String(a.last_timestamp || '')),
   )
 }
 
-async function leggiGiriDaApi(idUtente, urlApi, sessione) {
+async function leggiGiriDaApi(credenziali, urlApi, sessione) {
   const dati = await chiamaApi({
     action: 'get_session_laps',
-    user_id: idUtente,
+    ...payloadAccesso(credenziali),
     session_id: sessione.session_id,
     track: sessione.track,
   }, urlApi)
@@ -31,11 +42,14 @@ async function leggiGiriDaApi(idUtente, urlApi, sessione) {
 
 function Applicazione() {
   const [vista, impostaVista] = useState('accesso') // cosi permetto il refresh della pagina andando a cambiare il frontend in base a cosa voglio
-  const [stato, impostaStato] = useState('Pronto') // mi serve per indicare lo stato di caricamento (es. sto aggiornando)
+  const [stato, impostaStato] = useState('Riconosco la postazione') // mi serve per indicare lo stato di caricamento (es. sto aggiornando)
   const [configurazione, impostaConfigurazione] = useState(null) //per capire idutente e urlapi
-  const [erroreConfigurazione, impostaErroreConfigurazione] = useState('') 
-  const [idUtente, impostaIdUtente] = useState('')
-  const [urlApi, impostaUrlApi] = useState('')
+  const [modalitaAccesso, impostaModalitaAccesso] = useState('caricamento')
+  const [erroreAccesso, impostaErroreAccesso] = useState('')
+  const [caricamentoAccesso, impostaCaricamentoAccesso] = useState(false)
+  const [codiceGenerato, impostaCodiceGenerato] = useState(null)
+  const [credenzialiDashboard, impostaCredenzialiDashboard] = useState(null)
+  const [urlApi, impostaUrlApi] = useState(urlApiPredefinito)
 
   const [sessioni, impostaSessioni] = useState([])
   const [sessioneSelezionata, impostaSessioneSelezionata] = useState(null)
@@ -51,25 +65,25 @@ function Applicazione() {
       impostaStato('Leggo configurazione locale')
       const configurazioneRuntime = await leggiConfigurazioneRuntime()
       impostaConfigurazione(configurazioneRuntime)
-      impostaErroreConfigurazione('')
-      impostaIdUtente(configurazioneRuntime.idUtente)
+      impostaModalitaAccesso('pilota')
       impostaUrlApi(configurazioneRuntime.urlApi)
-      impostaStato('Configurazione pronta')
-    } catch (errore) {
+      impostaStato('Postazione pilota riconosciuta')
+    } catch {
       impostaConfigurazione(null)
-      impostaErroreConfigurazione(messaggioErrore(errore))
-      impostaStato('Configurazione mancante')
+      impostaModalitaAccesso('ingegnere')
+      impostaUrlApi(urlApiPredefinito)
+      impostaStato('Accesso ingegnere')
     }
   }
 
   async function caricaSessioni() { // carico le sessioni
-    const sessioniOrdinate = await leggiSessioniDaApi(idUtente, urlApi)
+    const sessioniOrdinate = await leggiSessioniDaApi(credenzialiDashboard, urlApi)
     impostaSessioni(sessioniOrdinate)
     return sessioniOrdinate
   }
 
   async function caricaGiri(sessione) { //chiamo i giri di una specifica sessione
-    return leggiGiriDaApi(idUtente, urlApi, sessione)
+    return leggiGiriDaApi(credenzialiDashboard, urlApi, sessione)
   }
 
   useEffect(() => { // useeffect: esegue il codice che avviene dopo aver renderizzato la pagine
@@ -81,7 +95,7 @@ function Applicazione() {
 
     const intervallo = window.setInterval(async () => {
       try {
-        const sessioniOrdinate = await leggiSessioniDaApi(idUtente, urlApi) // quando clicco su Live
+        const sessioniOrdinate = await leggiSessioniDaApi(credenzialiDashboard, urlApi) // quando clicco su Live
         impostaSessioni(sessioniOrdinate)
         const sessioneRecente = sessioniOrdinate[0] || sessioneSelezionata //prendo la recente, o se non e cambiata la mantengo
 
@@ -91,7 +105,7 @@ function Applicazione() {
           impostaConsiglioAi(null)
         }
 
-        const giriAggiornati = await leggiGiriDaApi(idUtente, urlApi, sessioneRecente)
+        const giriAggiornati = await leggiGiriDaApi(credenzialiDashboard, urlApi, sessioneRecente)
         impostaGiri(giriAggiornati)
         impostaStato(`Live aggiornata - ${giriAggiornati.length} giri`)
       } catch (errore) {
@@ -100,12 +114,62 @@ function Applicazione() {
     }, 5000) //ogni 5 secondi
 
     return () => window.clearInterval(intervallo) // quando smetto l'effect resetto tutto
-  }, [idUtente, liveAttivo, sessioneSelezionata, urlApi, vista]) // sono le dipendenze, aggiorno l'effect quando cambia uno di queste
+  }, [credenzialiDashboard, liveAttivo, sessioneSelezionata, urlApi, vista]) // sono le dipendenze, aggiorno l'effect quando cambia uno di queste
 
-  function gestisciAccesso() { // funzionalita frontend che mi fa capire come e andato il login
+  async function generaCodiceAccesso(codicePostazione) {
     if (!configurazione) return
-    impostaStato('Accesso effettuato')
+
+    impostaCaricamentoAccesso(true)
+    impostaErroreAccesso('')
+    impostaStato('Genero il codice di accesso')
+
+    try {
+      const dati = await chiamaApi({
+        action: 'create_dashboard_access',
+        user_id: configurazione.idUtente,
+        station_code: codicePostazione,
+      }, urlApi)
+      const credenziali = {
+        codicePostazione: dati.station_code,
+        codiceAccesso: dati.access_code,
+      }
+      impostaCodiceGenerato(credenziali)
+      impostaCredenzialiDashboard(credenziali)
+      impostaStato('Codici pronti')
+    } catch (errore) {
+      impostaErroreAccesso(messaggioErrore(errore))
+      impostaStato('Creazione codici non riuscita')
+    } finally {
+      impostaCaricamentoAccesso(false)
+    }
+  }
+
+  async function accediComeIngegnere(codicePostazione, codiceAccesso) {
+    impostaCaricamentoAccesso(true)
+    impostaErroreAccesso('')
+    impostaStato('Verifico i codici')
+
+    try {
+      const credenziali = { codicePostazione, codiceAccesso }
+      await chiamaApi({
+        action: 'authenticate_dashboard',
+        ...payloadAccesso(credenziali),
+      }, urlApi)
+      impostaCredenzialiDashboard(credenziali)
+      impostaVista('menu')
+      impostaStato('Accesso ingegnere effettuato')
+    } catch (errore) {
+      impostaErroreAccesso(messaggioErrore(errore))
+      impostaStato('Accesso non riuscito')
+    } finally {
+      impostaCaricamentoAccesso(false)
+    }
+  }
+
+  function entraComePilota() {
+    if (!codiceGenerato) return
     impostaVista('menu')
+    impostaStato('Accesso pilota effettuato')
   }
 
   async function apriStorico() { // lista sessioni
@@ -172,7 +236,7 @@ function Applicazione() {
     try {
       const dati = await chiamaApi({
         action: 'ai_insight',
-        user_id: idUtente,
+        ...payloadAccesso(credenzialiDashboard),
         session_id: sessioneSelezionata.session_id,
         track: sessioneSelezionata.track,
         driver: sessioneSelezionata.driver,
@@ -207,10 +271,13 @@ function Applicazione() {
 
       {vista === 'accesso' && (
         <Accesso
-          configurazione={configurazione}
-          errore={erroreConfigurazione}
-          quandoAccesso={gestisciAccesso}
-          quandoRicarica={caricaConfigurazione}
+          caricamento={caricamentoAccesso}
+          codiceGenerato={codiceGenerato}
+          errore={erroreAccesso}
+          modalita={modalitaAccesso}
+          quandoAccedi={accediComeIngegnere}
+          quandoEntraPilota={entraComePilota}
+          quandoGenera={generaCodiceAccesso}
         />
       )}
 

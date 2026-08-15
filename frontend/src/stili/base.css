@@ -93,6 +93,16 @@ input:focus {
   text-transform: uppercase;
 }
 
+.sottotitolo-accesso {
+  max-width: 760px;
+  margin: 22px auto 0;
+  color: var(--testo-secondario);
+  font-size: clamp(18px, 2.4vw, 30px);
+  font-weight: 800;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
 .pannello {
   width: min(520px, 100%);
   border: 1px solid var(--linea);
@@ -106,6 +116,42 @@ input:focus {
   margin: 0 0 24px;
   font-size: 52px;
   line-height: 1;
+}
+
+.testo-informativo {
+  margin: 0 0 22px;
+  color: var(--testo-secondario);
+  line-height: 1.5;
+}
+
+.modulo-accesso,
+.codici-generati {
+  display: grid;
+  gap: 18px;
+}
+
+.campo-accesso {
+  display: grid;
+  gap: 8px;
+  text-align: left;
+}
+
+.campo-accesso span {
+  color: var(--testo-secondario);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.campo-accesso input[readonly] {
+  border-color: var(--rosso);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.errore-accesso {
+  margin: 0;
 }
 
 .etichetta-sezione {

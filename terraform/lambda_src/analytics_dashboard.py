@@ -1,16 +1,21 @@
+import hashlib
+import hmac
 import json
 import os
+import re
+import secrets
 import urllib.error
 import urllib.request
 from decimal import Decimal
 
 import boto3
-from boto3.dynamodb.conditions import Key
+from boto3.dynamodb.conditions import Attr, Key
 from botocore.exceptions import ClientError
 from strategy import StrategyEvaluator
 
 
 TABLE_NAME = os.environ.get("DYNAMO_TABLE", "analytics_dashboard_dynamo")
+ACCESS_TABLE_NAME = os.environ.get("DASHBOARD_ACCESS_TABLE", "analytics_dashboard_access")
 DEFAULT_USER_ID = os.environ.get("DEFAULT_USER_ID", "personal-user")
 OPENAI_SECRET_ARN = os.environ.get("OPENAI_API_KEY_SECRET_ARN", "")
 OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4.1-mini")
@@ -19,6 +24,10 @@ OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses"
 dynamodb = boto3.resource("dynamodb")
 secretsmanager = boto3.client("secretsmanager")
 table = dynamodb.Table(TABLE_NAME)
+access_table = dynamodb.Table(ACCESS_TABLE_NAME)
+
+ACCESS_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+STATION_CODE_PATTERN = re.compile(r"^[A-Z0-9_-]{4,32}$")
 
 # -- FUNZIONI DI CONTROLLO PROTOCOLLI -- 
 
@@ -97,6 +106,100 @@ def _event_user_id(event, payload):
     authorizer = event.get("requestContext", {}).get("authorizer", {}) if isinstance(event, dict) else {}
     claims = authorizer.get("claims") or authorizer.get("jwt", {}).get("claims", {})
     return payload.get("user_id") or claims.get("sub") or claims.get("username") or DEFAULT_USER_ID
+
+
+def _normalize_station_code(value):
+    return str(value or "").strip().upper()
+
+
+def _normalize_access_code(value):
+    return re.sub(r"[^A-Z0-9]", "", str(value or "").upper())
+
+
+def _generate_access_code():
+    groups = [
+        "".join(secrets.choice(ACCESS_CODE_ALPHABET) for _ in range(4))
+        for _ in range(4)
+    ]
+    return "-".join(groups)
+
+
+def _hash_access_code(access_code, salt):
+    normalized_code = _normalize_access_code(access_code)
+    return hashlib.sha256(f"{salt}:{normalized_code}".encode("utf-8")).hexdigest()
+
+
+def create_dashboard_access(payload):
+    user_id = _clean_text(payload.get("user_id"))
+    station_code = _normalize_station_code(payload.get("station_code"))
+
+    if not user_id:
+        return _response(400, {"message": "Identita del pilota non disponibile."})
+    if not STATION_CODE_PATTERN.fullmatch(station_code):
+        return _response(400, {
+            "message": (
+                "Il codice postazione deve contenere da 4 a 32 caratteri: "
+                "lettere, numeri, trattino o trattino basso."
+            ),
+        })
+
+    access_code = _generate_access_code()
+    salt = secrets.token_hex(16)
+    item = {
+        "station_code": station_code,
+        "user_id": user_id,
+        "access_code_hash": _hash_access_code(access_code, salt),
+        "access_code_salt": salt,
+    }
+
+    try:
+        access_table.put_item(
+            Item=item,
+            ConditionExpression=(
+                Attr("station_code").not_exists() | Attr("user_id").eq(user_id)
+            ),
+        )
+    except access_table.meta.client.exceptions.ConditionalCheckFailedException:
+        return _response(409, {
+            "message": "Codice postazione gia utilizzato da un altro pilota.",
+        })
+
+    return _response(200, {
+        "station_code": station_code,
+        "access_code": access_code,
+        "message": "Accesso dashboard creato. Conserva e comunica entrambi i codici.",
+    })
+
+
+def _dashboard_user_id(payload):
+    station_code = _normalize_station_code(payload.get("station_code"))
+    access_code = _normalize_access_code(payload.get("access_code"))
+    if not station_code or not access_code:
+        return None
+
+    response = access_table.get_item(
+        Key={"station_code": station_code},
+        ConsistentRead=True,
+    )
+
+    item = response.get("Item")
+    if not item:
+        return None
+
+    expected_hash = item.get("access_code_hash", "")
+    received_hash = _hash_access_code(access_code, item.get("access_code_salt", ""))
+    if not hmac.compare_digest(expected_hash, received_hash):
+        return None
+    return item.get("user_id")
+
+
+def authenticate_dashboard(payload):
+    if not _dashboard_user_id(payload):
+        return _response(401, {"message": "Codice postazione o codice di accesso non valido."})
+    return _response(200, {
+        "station_code": _normalize_station_code(payload.get("station_code")),
+        "message": "Accesso dashboard autorizzato.",
+    })
 
 
 def get_recent_laps(user_id=None, driver=None, track=None, session_id=None, limit= None , search_limit=30): # SERCH_LIMIT: indica quante pull di dati ottengo ad ogni query
@@ -286,7 +389,6 @@ def list_sessions(payload):
         summary["latest_lap"] = compact_lap(lap)
 
     return _response(200, {
-        "user_id": user_id,
         "sessions": list(sessions.values()),
     })
 
@@ -305,10 +407,13 @@ def get_session_laps(payload):
         limit=None,
         search_limit=120,
     )
+    public_laps = _to_json_value(laps)
+    for lap in public_laps:
+        lap.pop("user_id", None)
+
     return _response(200, {
-        "user_id": user_id,
         "session_id": session_id,
-        "laps": _to_json_value(laps),
+        "laps": public_laps,
     })
 
 
@@ -334,7 +439,6 @@ def read_openai_api_key():
 def compact_lap(lap):
     lap = _to_json_value(lap)
     return {
-        "user_id": lap.get("user_id"),
         "lap_number": lap.get("lap_number"),
         "session_id": lap.get("session_id"),
         "session_type": lap.get("session_type"),
@@ -473,7 +577,6 @@ def handle_ai_insight(payload):
         return _response(502, {"message": "Analisi AI non disponibile.", "detail": str(error)})
 
     return _response(200, {
-        "user_id": user_id,
         "driver": driver,
         "track": track,
         "session_id": session_id,
@@ -490,19 +593,40 @@ def handler(event, context):
         return _response(204, {})
 
     payload = _parse_event(event)
-    payload["user_id"] = _event_user_id(event, payload)
+    action = payload.get("action")
 
-    if payload.get("action") == "health_check":
+    if action == "health_check":
         return health_check()
-    if payload.get("action") == "live_update":
+    if action == "create_dashboard_access":
+        return create_dashboard_access(payload)
+    if action == "authenticate_dashboard":
+        return authenticate_dashboard(payload)
+
+    protected_actions = {
+        "get_live_state",
+        "list_sessions",
+        "get_session_laps",
+        "ai_insight",
+    }
+    if action in protected_actions:
+        dashboard_user_id = _dashboard_user_id(payload)
+        if not dashboard_user_id:
+            return _response(401, {
+                "message": "Codice postazione o codice di accesso non valido.",
+            })
+        payload["user_id"] = dashboard_user_id
+    else:
+        payload["user_id"] = _event_user_id(event, payload)
+
+    if action == "live_update":
         return save_live_state(payload)
-    if payload.get("action") == "get_live_state":
+    if action == "get_live_state":
         return get_live_state(payload)
-    if payload.get("action") == "list_sessions":
+    if action == "list_sessions":
         return list_sessions(payload)
-    if payload.get("action") == "get_session_laps":
+    if action == "get_session_laps":
         return get_session_laps(payload)
-    if payload.get("action") == "ai_insight":
+    if action == "ai_insight":
         return handle_ai_insight(payload)
 
     return save_lap(payload)

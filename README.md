@@ -19,9 +19,15 @@ La web app trasforma i dati live di ACC in una vista leggibile e utile per prend
 
 ## Funzionalita Principali
 
-### Login e Sessione Utente
+### Accesso Pilota e Ingegnere
 
-Il sistema associa la telemetria a un utente autenticato. In questo modo ogni pilota vede le proprie sessioni e il proprio storico.
+Il pilota continua a eseguire il login Cognito sul PC Edge. Il frontend locale riconosce la configurazione generata da `test_realtime.py` e permette al pilota di:
+
+1. scegliere un codice personalizzato per la postazione;
+2. generare un codice di accesso casuale;
+3. comunicare entrambi i codici all'ingegnere di pista.
+
+L'ingegnere apre lo stesso frontend da un browser remoto, inserisce i due codici e accede alla medesima dashboard con sessione live e storico. Il codice di accesso non viene salvato in chiaro: DynamoDB conserva solamente il suo hash con salt.
 
 ### Dashboard Live
 
@@ -73,7 +79,7 @@ Python Edge Backend
 AWS IoT Core -> Lambda -> DynamoDB
         |
         v
-React Dashboard
+CloudFront -> React Dashboard
 ```
 
 ### Backend Locale
@@ -86,7 +92,18 @@ La parte cloud riceve i payload, li salva su DynamoDB e li espone alla dashboard
 
 ### Frontend
 
-Il frontend e' una dashboard React/Vite pensata per consultare live e storico in modo rapido.
+Il frontend e' una dashboard React/Vite unica per pilota e ingegnere. In locale mostra la creazione dei codici per il pilota; quando viene pubblicato senza configurazione Edge mostra l'accesso remoto dell'ingegnere.
+
+Per creare il build pubblico senza copiare il `runtime-config.json` locale:
+
+```bash
+cd frontend
+npm run build:public
+```
+
+Anche `npm run build` usa per sicurezza il profilo pubblico. `npm run build:local` e' disponibile soltanto per controllare un build destinato alla postazione del pilota.
+
+L'infrastruttura Terraform dichiara un bucket S3 privato e una distribuzione CloudFront HTTPS. Dopo l'applicazione dell'infrastruttura, il contenuto di `frontend/dist` deve essere pubblicato nel bucket indicato dall'output Terraform `frontend_bucket_name`. L'URL da comunicare all'ingegnere e' disponibile nell'output `frontend_url`.
 
 ## Dati Raccolti
 

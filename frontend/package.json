@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "BUILD_PUBLIC_FRONTEND=true vite build",
+    "build:local": "vite build",
+    "build:public": "BUILD_PUBLIC_FRONTEND=true vite build",
     "lint": "oxlint",
     "preview": "vite preview"
   },
