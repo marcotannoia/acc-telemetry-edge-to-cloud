@@ -13,6 +13,7 @@ import {
 import { haDati } from '../../utilita/datiGrafici.js'
 
 Chart.register(CategoryScale, LinearScale, LineController, LineElement, PointElement, Filler, Tooltip, Legend)
+Chart.defaults.font.family = "'Barlow Condensed', 'Arial Narrow', sans-serif"
 
 export function SezioneGrafici({ etichette, sezione }) {
   return (

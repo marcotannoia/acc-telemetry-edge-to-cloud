@@ -42,7 +42,7 @@ async function leggiGiriDaApi(credenziali, urlApi, sessione) {
 
 function Applicazione() {
   const [vista, impostaVista] = useState('accesso') // cosi permetto il refresh della pagina andando a cambiare il frontend in base a cosa voglio
-  const [stato, impostaStato] = useState('Riconosco la postazione') // mi serve per indicare lo stato di caricamento (es. sto aggiornando)
+  const [, impostaStato] = useState('Riconosco la postazione') // lo stato resta interno e non viene mostrato nell'interfaccia
   const [configurazione, impostaConfigurazione] = useState(null) //per capire idutente e urlapi
   const [modalitaAccesso, impostaModalitaAccesso] = useState('caricamento')
   const [erroreAccesso, impostaErroreAccesso] = useState('')
@@ -267,8 +267,6 @@ function Applicazione() {
 
   return (
     <main className="applicazione">
-      <span className="badge-stato">{stato}</span>
-
       {vista === 'accesso' && (
         <Accesso
           caricamento={caricamentoAccesso}

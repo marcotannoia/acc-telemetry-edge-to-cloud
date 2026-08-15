@@ -7,6 +7,7 @@
   --rosso: #ef0712;
   --rosso-scuro: #a8060e;
   --testo: #fff;
+  --font-racing: 'Barlow Condensed', 'Arial Narrow', sans-serif;
 }
 
 * {
@@ -19,7 +20,7 @@ body {
   min-height: 100vh;
   background: var(--sfondo);
   color: var(--testo);
-  font-family: 'Parkinsans', 'Quicksand', Arial, sans-serif;
+  font-family: var(--font-racing);
 }
 
 button,
@@ -145,7 +146,7 @@ input:focus {
 
 .campo-accesso input[readonly] {
   border-color: var(--rosso);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-racing);
   font-weight: 800;
   letter-spacing: 0.08em;
 }
@@ -198,19 +199,6 @@ input:focus {
 
 .errore-compatto {
   margin-bottom: 12px;
-}
-
-.badge-stato {
-  position: fixed;
-  top: 18px;
-  right: 18px;
-  z-index: 10;
-  border: 1px solid var(--linea);
-  border-radius: 999px;
-  background: #000;
-  color: var(--testo-secondario);
-  padding: 8px 12px;
-  font-size: 12px;
 }
 
 @media (max-width: 840px) {
