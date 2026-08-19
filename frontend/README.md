@@ -66,3 +66,5 @@ npm run build:local
 npm run build
 npm run preview
 ```
+
+La preview pubblica dell’ingegnere usa `http://localhost:8000`, origine già autorizzata dalla configurazione CORS dell’API.

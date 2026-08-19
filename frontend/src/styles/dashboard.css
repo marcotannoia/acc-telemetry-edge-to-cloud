@@ -1,132 +1,71 @@
-.info-configurazione {
-  display: grid;
-  gap: 6px;
-  margin-bottom: 18px;
-  text-align: left;
-}
-
-.info-configurazione span {
-  color: var(--testo-secondario);
-  font-size: 12px;
-  font-weight: 800;
-  text-transform: uppercase;
-}
-
-.info-configurazione strong {
-  overflow-wrap: anywhere;
-  border: 1px solid var(--linea);
-  border-radius: 8px;
-  padding: 10px 12px;
-  background: #050505;
-  font-size: 13px;
-}
-
-.intestazione-pagina {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 24px;
-}
-
-.intestazione-pagina h1 {
-  margin: 0;
-  font-size: clamp(38px, 5vw, 72px);
-}
-
-.lista-sessioni {
-  display: grid;
-  gap: 12px;
-}
-
-.scheda-sessione,
-.metrica,
-.pannello-grafico,
-.pannello-consigli {
-  border: 1px solid var(--linea);
-  border-radius: 8px;
-  background: var(--pannello);
-}
-
-.scheda-sessione {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  gap: 16px;
-  width: 100%;
-  color: var(--testo);
-  padding: 18px;
-  text-align: left;
-  text-transform: none;
-}
-
-.scheda-sessione strong,
-.scheda-sessione span {
-  display: block;
-}
-
-.scheda-sessione span {
-  color: var(--testo-secondario);
-  font-size: 13px;
-}
-
 .sezioni-metriche {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 18px;
-  margin-bottom: 22px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 22px;
+  margin-bottom: 40px;
 }
 
 .sezione-metriche {
   min-width: 0;
   border-top: 1px solid var(--linea);
-  padding-top: 12px;
+  padding-top: 14px;
 }
 
 .sezione-metriche h2,
-.sezione-grafici h2 {
+.sezione-grafici > h2 {
   margin: 0 0 12px;
   color: var(--testo-secondario);
-  font-size: 12px;
-  letter-spacing: 0;
+  font-size: 11px;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 
 .griglia-metriche {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  gap: 9px;
+}
+
+.metrica,
+.pannello-grafico,
+.pannello-consigli {
+  border: 1px solid var(--linea);
+  border-radius: 12px;
+  background: var(--superficie);
 }
 
 .metrica {
-  padding: 16px;
+  min-width: 0;
+  padding: 15px;
 }
 
 .metrica span {
   display: block;
-  margin-bottom: 10px;
+  margin-bottom: 9px;
   color: var(--testo-secondario);
-  font-size: 12px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
 .metrica strong {
   display: block;
   overflow-wrap: anywhere;
-  font-size: 28px;
+  font-size: 27px;
+  font-weight: 600;
 }
 
 .metrica-positivo strong {
-  color: #22c55e;
+  color: var(--accento);
 }
 
 .metrica-negativo strong {
-  color: var(--rosso);
+  color: var(--errore);
 }
 
 .sezioni-grafici {
   display: grid;
-  gap: 24px;
+  gap: 32px;
 }
 
 .sezione-grafici {
@@ -135,18 +74,19 @@
 
 .griglia-grafici {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
   gap: 12px;
 }
 
 .pannello-grafico {
   position: relative;
-  padding: 16px;
+  padding: 18px;
 }
 
 .pannello-grafico h2 {
-  margin: 0 0 12px;
-  font-size: 16px;
+  margin: 0 0 14px;
+  font-size: 17px;
+  font-weight: 500;
 }
 
 .corpo-grafico {
@@ -155,9 +95,10 @@
 
 .pannello-consigli {
   display: grid;
-  gap: 16px;
-  margin-top: 12px;
-  padding: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 28px;
+  margin-top: 14px;
+  padding: 22px;
 }
 
 .pannello-consigli p {
@@ -173,19 +114,19 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 14px;
+  gap: 16px;
+  margin-bottom: 16px;
 }
 
 .intestazione-ai .azione-primaria {
-  min-width: 150px;
+  min-width: 145px;
 }
 
 .testo-ai-secondario,
 .meta-ai {
   color: var(--testo-secondario);
   font-size: 13px;
-  line-height: 1.45;
+  line-height: 1.5;
 }
 
 .meta-ai {
@@ -207,19 +148,22 @@
 }
 
 .lista-consigli li::marker {
-  color: var(--rosso);
+  color: var(--accento);
 }
 
 @media (max-width: 840px) {
-  .intestazione-pagina,
+  .sezioni-metriche,
+  .griglia-metriche,
+  .griglia-grafici {
+    grid-template-columns: 1fr;
+  }
+
   .intestazione-ai {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .sezioni-metriche,
-  .griglia-metriche,
-  .griglia-grafici {
-    grid-template-columns: 1fr;
+  .intestazione-ai .azione-primaria {
+    align-self: flex-start;
   }
 }

@@ -11,12 +11,19 @@ function responseBody(data) {
 }
 
 export async function postApi(payload, { apiUrl = DEFAULT_API_URL, signal } = {}) {
-  const response = await fetch(apiUrl.replace(/\/+$/, ''), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-    signal,
-  })
+  let response
+
+  try {
+    response = await fetch(apiUrl.replace(/\/+$/, ''), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal,
+    })
+  } catch (error) {
+    if (error.name === 'AbortError') throw error
+    throw new Error('Connessione alla dashboard non disponibile. Aggiorna la pagina e riprova.')
+  }
 
   const data = await response.json().catch(() => ({}))
   const body = responseBody(data)

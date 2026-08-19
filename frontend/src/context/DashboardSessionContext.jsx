@@ -53,7 +53,6 @@ export function DashboardSessionProvider({ children }) {
       }
 
       setGeneratedCodes(nextCredentials)
-      setCredentials(nextCredentials)
       return true
     } catch (error) {
       setAccessError(errorMessage(error))

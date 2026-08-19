@@ -8,7 +8,10 @@ function SessionsPage() {
   return (
     <section className="schermata">
       <div className="intestazione-pagina">
-        <h1>Lista Sessioni</h1>
+        <div>
+          <p className="etichetta-sezione">Archivio</p>
+          <h1>Sessioni.</h1>
+        </div>
         <button type="button" className="azione-secondaria" onClick={() => navigate('/menu')}>
           Menu
         </button>
@@ -28,12 +31,11 @@ function SessionsPage() {
               state: { session },
             })}
           >
-            <span>
+            <span className="dati-sessione">
               <strong>{session.track || 'Pista sconosciuta'}</strong>
-              <span>{session.driver || 'Pilota'}</span>
-              <span>{session.lap_count || 0} giri</span>
+              <span>{session.driver || 'Pilota'} · {session.lap_count || 0} giri</span>
             </span>
-            <strong>Apri</strong>
+            <strong className="apri-sessione">Apri</strong>
           </button>
         ))}
       </div>

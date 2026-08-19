@@ -4,15 +4,19 @@ function MenuPage() {
   const navigate = useNavigate()
 
   return (
-    <section className="schermata schermata-centrata">
-      <h1 className="titolo-principale">ACC-Telemetry</h1>
+    <section className="schermata schermata-centrata schermata-menu">
+      <h1 className="titolo-principale">Analisi<span> telemetrica.</span></h1>
 
       <div className="pila-bottoni">
-        <button type="button" className="azione-secondaria" onClick={() => navigate('/sessions')}>
-          Lista Sessioni
+        <button
+          type="button"
+          className="azione-secondaria azione-contorno-accento"
+          onClick={() => navigate('/sessions')}
+        >
+          Sessioni archiviate
         </button>
         <button type="button" className="azione-primaria" onClick={() => navigate('/live')}>
-          Sessione Live
+          Sessione live
         </button>
       </div>
     </section>

@@ -97,8 +97,11 @@ resource "aws_apigatewayv2_api" "analytics_dashboard_test" {
   cors_configuration {
     allow_headers = ["content-type"]
     allow_methods = ["POST", "OPTIONS"]
-    allow_origins = var.test_frontend_cors_allowed_origins
-    max_age       = 3600
+    allow_origins = distinct(concat(
+      var.test_frontend_cors_allowed_origins,
+      ["https://${aws_cloudfront_distribution.frontend.domain_name}"]
+    ))
+    max_age = 3600
   }
 }
 

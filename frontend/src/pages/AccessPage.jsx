@@ -36,8 +36,8 @@ function AccessPage() {
   if (accessMode === 'loading') {
     return (
       <section className="schermata schermata-centrata">
-        <h1 className="titolo-principale">ACC-Telemetry</h1>
-        <p className="sottotitolo-accesso">Riconoscimento della postazione</p>
+        <p className="etichetta-sezione">ACC-Telemetry</p>
+        <h1 className="titolo-principale">Riconoscimento<span> postazione.</span></h1>
       </section>
     )
   }
@@ -55,58 +55,46 @@ function AccessPage() {
   }
 
   return (
-    <section className="schermata schermata-centrata">
-      <div>
-        <h1 className="titolo-principale">ACC-Telemetry</h1>
-        <p className="sottotitolo-accesso">
-          {pilot ? 'Configura l’accesso dell’ingegnere' : 'Accedi alla telemetria del pilota'}
-        </p>
-      </div>
+    <section className={`schermata schermata-accesso ${pilot ? 'schermata-accesso-pilota' : ''}`}>
+      <div className="corpo-accesso">
+        <div className="hero-accesso">
+          <h1 className="titolo-principale">
+            {pilot ? 'Collega il tuo ' : 'Accedi ai dati '}
+            <span>{pilot ? 'ingegnere.' : 'del pilota.'}</span>
+          </h1>
+        </div>
 
-      <div className="pannello">
-        <p className="etichetta-sezione">{pilot ? 'Postazione pilota' : 'Ingegnere di pista'}</p>
-        <h2>{pilot ? 'Crea i codici' : 'Inserisci i codici'}</h2>
+        <div className="pannello">
+          <h2>{generatedCodes ? 'Codici pronti.' : pilot ? 'Crea i codici.' : 'Entra.'}</h2>
 
-        {pilot && !generatedCodes && (
-          <p className="testo-informativo">
-            Scegli un codice riconoscibile per la postazione. Il sistema genererà il codice di accesso segreto.
-          </p>
-        )}
+          {generatedCodes ? (
+            <div className="codici-generati">
+              <p className="testo-informativo">
+                Comunica entrambi i codici all’ingegnere di pista.
+              </p>
+              <CodeField label="Codice postazione" value={generatedCodes.stationCode} readOnly />
+              <CodeField label="Codice di accesso" value={generatedCodes.accessCode} readOnly />
+            </div>
+          ) : (
+            <form className="modulo-accesso" onSubmit={submit}>
+              <CodeField label="Codice postazione" value={stationCode} onChange={setStationCode} />
 
-        {generatedCodes ? (
-          <div className="codici-generati">
-            <p className="testo-informativo">
-              Comunica entrambi i codici direttamente all’ingegnere. Il codice di accesso viene mostrato ora.
-            </p>
-            <CodeField label="Codice postazione" value={generatedCodes.stationCode} readOnly />
-            <CodeField label="Codice di accesso" value={generatedCodes.accessCode} readOnly />
-            <button
-              type="button"
-              className="azione-primaria azione-piena"
-              onClick={() => navigate('/menu')}
-            >
-              Entra nella dashboard
-            </button>
-          </div>
-        ) : (
-          <form className="modulo-accesso" onSubmit={submit}>
-            <CodeField label="Codice postazione" value={stationCode} onChange={setStationCode} />
+              {!pilot && (
+                <CodeField label="Codice di accesso" value={accessCode} onChange={setAccessCode} />
+              )}
 
-            {!pilot && (
-              <CodeField label="Codice di accesso" value={accessCode} onChange={setAccessCode} />
-            )}
+              {accessError && <p className="testo-errore errore-accesso">{accessError}</p>}
 
-            {accessError && <p className="testo-errore errore-accesso">{accessError}</p>}
-
-            <button
-              type="submit"
-              className="azione-primaria azione-piena"
-              disabled={accessLoading}
-            >
-              {pilot ? 'Genera codice di accesso' : 'Accedi alla dashboard'}
-            </button>
-          </form>
-        )}
+              <button
+                type="submit"
+                className="azione-primaria azione-piena"
+                disabled={accessLoading}
+              >
+                {pilot ? 'Genera accesso' : 'Accedi'}
+              </button>
+            </form>
+          )}
+        </div>
       </div>
     </section>
   )

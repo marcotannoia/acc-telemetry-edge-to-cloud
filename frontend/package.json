@@ -9,7 +9,7 @@
     "build:local": "vite build",
     "build:public": "BUILD_PUBLIC_FRONTEND=true vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview --port 8000"
   },
   "dependencies": {
     "chart.js": "^4.5.1",
