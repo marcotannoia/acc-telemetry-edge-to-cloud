@@ -10,63 +10,63 @@ import {
   PointElement,
   Tooltip,
 } from 'chart.js'
-import { haDati } from '../../utilita/datiGrafici.js'
+import { haDati } from '../../utils/chartData.js'
 
 Chart.register(CategoryScale, LinearScale, LineController, LineElement, PointElement, Filler, Tooltip, Legend)
 Chart.defaults.font.family = "'Barlow Condensed', 'Arial Narrow', sans-serif"
 
-export function SezioneGrafici({ etichette, sezione }) {
+export function ChartsSection({ labels, section }) {
   return (
     <section className="sezione-grafici">
-      <h2>{sezione.titolo}</h2>
+      <h2>{section.titolo}</h2>
       <div className="griglia-grafici">
-        {sezione.gruppi.map((gruppo) => (
-          <PannelloGrafico key={gruppo.titolo} gruppo={gruppo} etichette={etichette} />
+        {section.gruppi.map((group) => (
+          <ChartPanel key={group.titolo} group={group} labels={labels} />
         ))}
       </div>
     </section>
   )
 }
 
-function PannelloGrafico({ gruppo, etichette }) {
+function ChartPanel({ group, labels }) {
   return (
     <article className="pannello-grafico">
-      <h2>{gruppo.titolo}</h2>
+      <h2>{group.titolo}</h2>
       <div className="corpo-grafico">
-        <GraficoLineare
-          datasets={gruppo.datasets.filter(haDati)}
-          etichette={etichette}
-          invertiAsseY={gruppo.invertiAsseY}
+        <LineChart
+          datasets={group.datasets.filter(haDati)}
+          labels={labels}
+          reverseYAxis={group.invertiAsseY}
         />
       </div>
     </article>
   )
 }
 
-function GraficoLineare({ datasets, etichette, invertiAsseY = false }) {
-  const riferimentoCanvas = useRef(null)
-  const riferimentoGrafico = useRef(null)
+function LineChart({ datasets, labels, reverseYAxis = false }) {
+  const canvasRef = useRef(null)
+  const chartRef = useRef(null)
 
   useEffect(() => {
-    if (!riferimentoCanvas.current || riferimentoGrafico.current) return undefined
+    if (!canvasRef.current || chartRef.current) return undefined
 
-    riferimentoGrafico.current = new Chart(riferimentoCanvas.current, {
+    chartRef.current = new Chart(canvasRef.current, {
       type: 'line',
       data: { labels: [], datasets: [] },
-      options: opzioniGrafico(invertiAsseY),
+      options: chartOptions(reverseYAxis),
     })
 
     return () => {
-      riferimentoGrafico.current?.destroy()
-      riferimentoGrafico.current = null
+      chartRef.current?.destroy()
+      chartRef.current = null
     }
-  }, [invertiAsseY])
+  }, [reverseYAxis])
 
   useEffect(() => {
-    if (!riferimentoGrafico.current) return
+    if (!chartRef.current) return
 
-    riferimentoGrafico.current.data.labels = etichette
-    riferimentoGrafico.current.data.datasets = datasets.map((dataset) => ({
+    chartRef.current.data.labels = labels
+    chartRef.current.data.datasets = datasets.map((dataset) => ({
       ...dataset,
       borderWidth: 2,
       fill: false,
@@ -74,13 +74,13 @@ function GraficoLineare({ datasets, etichette, invertiAsseY = false }) {
       spanGaps: true,
       tension: 0.35,
     }))
-    riferimentoGrafico.current.update('none')
-  }, [datasets, etichette])
+    chartRef.current.update('none')
+  }, [datasets, labels])
 
-  return <canvas ref={riferimentoCanvas}></canvas>
+  return <canvas ref={canvasRef}></canvas>
 }
 
-function opzioniGrafico(invertiAsseY) {
+function chartOptions(reverseYAxis) {
   return {
     responsive: true,
     animation: false,
@@ -95,7 +95,7 @@ function opzioniGrafico(invertiAsseY) {
         grid: { color: 'rgba(255,255,255,0.08)' },
       },
       y: {
-        reverse: invertiAsseY,
+        reverse: reverseYAxis,
         ticks: { color: '#a8a8b0' },
         grid: { color: 'rgba(255,255,255,0.08)' },
       },

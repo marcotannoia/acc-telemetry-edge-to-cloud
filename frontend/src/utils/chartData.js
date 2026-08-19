@@ -8,7 +8,7 @@ import {
   secondiGiroDaMs,
   settori,
   tempoSettoreMs,
-} from './formatoTelemetria.js'
+} from './telemetryFormatters.js'
 
 function dataset(giri, campo, etichetta, colore, trasforma = numeroONullo) {
   return {
