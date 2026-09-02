@@ -5,14 +5,17 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "BUILD_PUBLIC_FRONTEND=true vite build",
+    "build:local": "vite build",
+    "build:public": "BUILD_PUBLIC_FRONTEND=true vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview --port 8000"
   },
   "dependencies": {
     "chart.js": "^4.5.1",
     "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "react-dom": "^19.2.7",
+    "react-router-dom": "^7.18.2"
   },
   "devDependencies": {
     "@types/react": "^19.2.17",
