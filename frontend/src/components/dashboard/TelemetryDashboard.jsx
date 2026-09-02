@@ -11,7 +11,7 @@ import {
   numeroONullo,
 } from '../../utils/telemetryFormatters.js'
 import { ChartsSection } from './Charts.jsx'
-import { AdviceList, AiAdvice } from './Advice.jsx'
+import { AiAdvice, StrategyOverview } from './Advice.jsx'
 import { Metric, MetricsSection } from './Metrics.jsx'
 
 function TelemetryDashboard({
@@ -91,8 +91,17 @@ function TelemetryDashboard({
 
       <section className="pannello-consigli">
         <div className="colonna-consigli">
-          <p className="etichetta-sezione">Conclusioni strategiche</p>
-          <AdviceList text={latestLap.strategy_advice} fallbackText="Nessun dato strategico disponibile." />
+          <div className="intestazione-strategia">
+            <div>
+              <p className="etichetta-sezione">Conclusioni strategiche</p>
+              <p className="testo-strategia-secondario">Stato della vettura e indicazioni per il prossimo giro.</p>
+            </div>
+          </div>
+          <StrategyOverview
+            fallbackText="Nessun dato strategico disponibile."
+            lap={latestLap}
+            tyreTemperature={tyreTemperature}
+          />
         </div>
 
         {live && (

@@ -1,3 +1,8 @@
+:root {
+  --azzurro-dashboard: #69aeb7;
+  --bordo-azzurro-dashboard: rgba(105, 174, 183, 0.5);
+}
+
 .sezioni-metriche {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -14,7 +19,7 @@
 .sezione-metriche h2,
 .sezione-grafici > h2 {
   margin: 0 0 12px;
-  color: var(--testo-secondario);
+  color: var(--azzurro-dashboard);
   font-size: 11px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -27,8 +32,7 @@
 }
 
 .metrica,
-.pannello-grafico,
-.pannello-consigli {
+.pannello-grafico {
   border: 1px solid var(--linea);
   border-radius: 12px;
   background: var(--superficie);
@@ -42,7 +46,7 @@
 .metrica span {
   display: block;
   margin-bottom: 9px;
-  color: var(--testo-secondario);
+  color: var(--azzurro-dashboard);
   font-size: 11px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -85,6 +89,7 @@
 
 .pannello-grafico h2 {
   margin: 0 0 14px;
+  color: var(--azzurro-dashboard);
   font-size: 17px;
   font-weight: 500;
 }
@@ -96,9 +101,16 @@
 .pannello-consigli {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 28px;
+  gap: 14px;
   margin-top: 14px;
-  padding: 22px;
+}
+
+.colonna-consigli {
+  min-width: 0;
+  border: 1px solid var(--bordo-azzurro-dashboard);
+  border-radius: 16px;
+  background: var(--superficie);
+  padding: clamp(20px, 3vw, 28px);
 }
 
 .pannello-consigli p {
@@ -106,8 +118,159 @@
   color: var(--testo-secondario);
 }
 
-.colonna-consigli {
+.intestazione-strategia {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 18px;
+}
+
+.intestazione-strategia .etichetta-sezione {
+  margin-bottom: 5px;
+}
+
+.testo-strategia-secondario {
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.sintesi-strategica {
+  display: grid;
+  gap: 12px;
+}
+
+.widget-strategia {
   min-width: 0;
+  border: 1px solid var(--bordo-azzurro-dashboard);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.widget-strategia-principale {
+  display: flex;
+  min-height: 112px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  background: #05090a;
+  padding: 20px 22px;
+}
+
+.widget-strategia-principale > div {
+  flex: 1;
+}
+
+.widget-strategia-principale h2 {
+  max-width: 720px;
+  margin: 5px 0 0;
+  color: var(--testo);
+  font-size: clamp(24px, 3vw, 34px);
+  font-weight: 500;
+  line-height: 1.08;
+}
+
+.titolo-widget,
+.intestazione-widget > span:first-child,
+.widget-strategia-dettaglio > span {
+  color: var(--azzurro-dashboard);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.stato-strategia {
+  flex: 0 0 auto;
+  text-align: right;
+}
+
+.stato-strategia span,
+.stato-strategia strong {
+  display: block;
+  text-transform: uppercase;
+}
+
+.stato-strategia span {
+  margin-bottom: 4px;
+  color: var(--testo-secondario);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+
+.stato-strategia strong {
+  color: var(--azzurro-dashboard);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+}
+
+.widget-strategia-avviso .stato-strategia strong {
+  color: var(--errore);
+}
+
+.griglia-indicatori-strategia,
+.griglia-dettagli-strategia {
+  display: grid;
+  gap: 12px;
+}
+
+.griglia-indicatori-strategia {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.widget-strategia-metrica {
+  padding: 16px;
+}
+
+.intestazione-widget {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.icona-widget {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--bordo-azzurro-dashboard);
+  border-radius: 8px;
+  align-items: center;
+  justify-content: center;
+  color: var(--azzurro-dashboard);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.widget-strategia-metrica strong {
+  display: block;
+  margin: 10px 0 2px;
+  color: var(--testo);
+  font-size: clamp(25px, 3vw, 32px);
+  font-weight: 500;
+  line-height: 1;
+}
+
+.widget-strategia-metrica p {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.griglia-dettagli-strategia {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.widget-strategia-dettaglio {
+  padding: 16px;
+}
+
+.widget-strategia-dettaglio p {
+  margin-top: 8px;
+  color: var(--testo);
+  font-size: 14px;
+  line-height: 1.4;
 }
 
 .intestazione-ai {
@@ -151,6 +314,12 @@
   color: var(--accento);
 }
 
+@media (max-width: 1100px) {
+  .pannello-consigli {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 840px) {
   .sezioni-metriche,
   .griglia-metriche,
@@ -165,5 +334,25 @@
 
   .intestazione-ai .azione-primaria {
     align-self: flex-start;
+  }
+
+  .griglia-dettagli-strategia {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .widget-strategia-principale {
+    display: block;
+    align-items: flex-start;
+  }
+
+  .stato-strategia {
+    margin-top: 18px;
+    text-align: left;
+  }
+
+  .griglia-indicatori-strategia {
+    grid-template-columns: 1fr;
   }
 }
