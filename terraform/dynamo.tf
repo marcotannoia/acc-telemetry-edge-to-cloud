@@ -26,3 +26,18 @@ resource "aws_dynamodb_table" "analytics_dashboard_dynamo" {
     projection_type = "ALL"
   }
 }
+
+resource "aws_dynamodb_table" "analytics_dashboard_access" {
+  name         = "analytics_dashboard_access"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "station_code"
+
+  attribute {
+    name = "station_code"
+    type = "S"
+  }
+
+  server_side_encryption {
+    enabled = true
+  }
+}

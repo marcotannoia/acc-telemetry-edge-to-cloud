@@ -9,16 +9,16 @@ export const nomiRuote = {
 }
 
 export const coloriRuote = {
-  fl: '#ef0712',
+  fl: '#0dd7f2',
   fr: '#ffffff',
-  rl: '#8b8b94',
-  rr: '#ff5a5f',
+  rl: '#74858a',
+  rr: '#087f91',
 }
 
 export const coloriSettori = {
-  1: '#ef0712',
+  1: '#0dd7f2',
   2: '#ffffff',
-  3: '#8b8b94',
+  3: '#74858a',
 }
 
 export function numeroONullo(valore) {

@@ -8,7 +8,7 @@ import {
   secondiGiroDaMs,
   settori,
   tempoSettoreMs,
-} from './formatoTelemetria.js'
+} from './telemetryFormatters.js'
 
 function dataset(giri, campo, etichetta, colore, trasforma = numeroONullo) {
   return {
@@ -40,7 +40,7 @@ export function creaSezioniGrafici(giri) {
         {
           titolo: 'Tempi giro',
           datasets: [
-            dataset(giri, 'lap_time_ms', 'Giro s', '#ef0712', secondiGiroDaMs),
+            dataset(giri, 'lap_time_ms', 'Giro s', '#0dd7f2', secondiGiroDaMs),
             dataset(giri, 'best_time_ms', 'Migliore s', '#ffffff', secondiGiroDaMs),
           ],
         },
@@ -61,14 +61,14 @@ export function creaSezioniGrafici(giri) {
         {
           titolo: 'Carburante',
           datasets: [
-            dataset(giri, 'fuel_left_L', 'Fuel residuo L', '#ef0712'),
+            dataset(giri, 'fuel_left_L', 'Fuel residuo L', '#0dd7f2'),
             dataset(giri, 'fuel_consumed_L', 'Fuel consumato L', '#ffffff'),
           ],
         },
         {
           titolo: 'Velocita',
           datasets: [
-            dataset(giri, 'max_speed_kmh', 'Max km/h', '#ef0712'),
+            dataset(giri, 'max_speed_kmh', 'Max km/h', '#0dd7f2'),
             dataset(giri, 'min_speed_kmh', 'Min km/h', '#ffffff'),
           ],
         },
